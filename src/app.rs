@@ -33,7 +33,11 @@ impl eframe::App for App {
             let frame = egui::Frame::default().inner_margin(egui::style::Margin::same(10.));
             let frame_response = frame.show(ui, |ui| self.draw_scene(ui, win_frame)).response;
 
-            self.resize_window(win_frame, vec2(300., frame_response.rect.height() + 20.));
+            let size = match self.scene {
+                Scene::Hosting { .. } => vec2(700., 446.),
+                _ => vec2(300., frame_response.rect.height() + 20.),
+            };
+            self.resize_window(win_frame, size);
         });
     }
 }
@@ -57,7 +61,7 @@ impl App {
         ui.spacing_mut().item_spacing = vec2(10., 10.);
 
         if ui.style().visuals.dark_mode {
-            ui.style_mut().visuals.override_text_color = Some(Color32::from_rgb(255, 255, 255));
+            ui.style_mut().visuals.override_text_color = Some(Color32::from_rgb(220, 220, 220));
         } else {
             ui.style_mut().visuals.override_text_color = Some(Color32::from_rgb(0, 0, 0));
         }
@@ -65,24 +69,24 @@ impl App {
         ui.style_mut().visuals.text_cursor_width = 1.;
     }
 
-    fn draw_scene(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    fn draw_scene(&mut self, ui: &mut egui::Ui, win_frame: &mut eframe::Frame) {
         Self::set_style(ui);
 
-        match self.scene {
+        match &mut self.scene {
             Scene::Main => {
                 ui.heading("Server Offline");
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label("Username:");
                     if ui.text_edit_singleline(&mut self.username).changed() {
-                        local_storage::set!(frame, "username", &self.username);
+                        local_storage::set!(win_frame, "username", &self.username);
                     }
                 });
 
                 ui.set_enabled(self.username.len() > 0);
 
                 if ui.button("Lock Server").clicked() {
-                    self.scene = Scene::SomeoneLocked;
+                    self.lock_server();
                 }
             }
             Scene::SomeoneLocked => {
@@ -98,19 +102,35 @@ impl App {
                     ui.label(format!("Ram: {}GB", self.ram));
                     let slider = Slider::new(&mut self.ram, 1..=6).show_value(false);
                     if ui.add(slider).changed() {
-                        local_storage::set!(frame, "ram", self.ram);
+                        local_storage::set!(win_frame, "ram", self.ram);
                     }
                 });
 
                 if ui.button("Start Server").clicked() {
-                    self.scene = Scene::Hosting;
+                    // self.start_server();
                 }
             }
-            Scene::Hosting => {
+            Scene::Hosting {
+                server_output,
+                command,
+            } => {
                 ui.heading("You are hosting");
-                // ui.text_edit_multiline(text)
+                ui.separator();
+                Frame::default().show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = vec2(0., 0.);
+                    ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .stick_to_bottom(true)
+                        .max_height(300.)
+                        .show(ui, |ui| {
+                            ui.label(server_output.clone());
+                        });
+
+                    ui.add(TextEdit::singleline(command).desired_width(f32::INFINITY));
+                });
+
                 if ui.button("Close Server").clicked() {
-                    self.scene = Scene::Hosting;
+                    // self.scene = Scene::Hosting;
                 }
             }
             Scene::Uploading => {

@@ -1,13 +1,14 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-mod scene;
 mod app;
 mod local_storage;
+mod scene;
+mod transitions;
 
-use scene::*;
 use app::*;
 use eframe::egui;
 use egui::*;
+use scene::*;
 
 fn main() {
     let mut options = eframe::NativeOptions::default();
