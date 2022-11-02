@@ -3,6 +3,7 @@
 mod app;
 mod local_storage;
 mod scene;
+mod server_files;
 mod transitions;
 
 use app::*;
