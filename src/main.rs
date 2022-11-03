@@ -2,14 +2,12 @@
 
 mod app;
 mod local_storage;
-mod scene;
 mod server_files;
 mod transitions;
 
 use app::*;
 use eframe::egui;
 use egui::*;
-use scene::*;
 
 fn main() {
     let mut options = eframe::NativeOptions::default();
