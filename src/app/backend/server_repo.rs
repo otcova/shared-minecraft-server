@@ -1,5 +1,5 @@
+use super::*;
 use git2::*;
-
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -38,8 +38,16 @@ fn get_app_folder_path() -> PathBuf {
     app_folder
 }
 
-pub fn get_server_repository() -> Repository {
+pub fn clone_server_repository(server_folder: &PathBuf, app: &BackendApp) -> Repository {
     const SERVER_REPO_LINK: &str = "https://github.com/otcova/mc-shared-server";
+    app.set_scene(Scene::Downloading);
+    match Repository::clone(SERVER_REPO_LINK, server_folder) {
+        Ok(repo) => repo,
+        Err(e) => panic!("Could not clone server repo {:?}", e),
+    }
+}
+
+pub fn get_server_repository(app: &BackendApp) -> Repository {
     const SERVER_NAME: &str = "Pasqua";
 
     let server_folder = get_app_folder_path().join(SERVER_NAME);
@@ -48,10 +56,7 @@ pub fn get_server_repository() -> Repository {
     match Repository::open(&server_folder) {
         Ok(repo) => repo,
         Err(e) => match e.class() {
-            git2::ErrorClass::Repository => match Repository::clone(SERVER_REPO_LINK, server_folder) {
-                Ok(repo) => repo,
-                Err(e) => panic!("Could not clone server repo {:?}", e),
-            },
+            git2::ErrorClass::Repository => clone_server_repository(&server_folder, app),
             _ => {
                 panic!("Error reading server app folder. {:?}", e);
             }

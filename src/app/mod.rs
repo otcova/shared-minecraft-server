@@ -1,4 +1,8 @@
+mod backend;
+mod local_storage;
+
 use super::*;
+use std::sync::mpsc;
 
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
@@ -15,21 +19,24 @@ pub enum Scene {
     Uploading,
 }
 
-#[derive(Debug)]
 pub struct App {
-    scene: Scene,
     window_size: Option<Vec2>,
+    scene: Scene,
     username: String,
     ram: u8,
+    backend_receiver: Option<mpsc::Receiver<Scene>>,
+    egui_ctx: egui::Context,
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         Self {
             scene: Scene::Main,
+            backend_receiver: None,
             window_size: None,
             username: local_storage::get_str!(cc.storage, "username", "".into()),
             ram: local_storage::get_num!(cc.storage, "ram", 2),
+            egui_ctx: cc.egui_ctx.clone(),
         }
     }
     fn resize_window(&mut self, frame: &mut eframe::Frame, new_size: Vec2) {
@@ -42,13 +49,15 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, win_frame: &mut eframe::Frame) {
+        self.pull_data_from_backend();
+
         Self::setup_fonts(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let frame = egui::Frame::default().inner_margin(egui::style::Margin::same(10.));
             let frame_response = frame.show(ui, |ui| self.draw_scene(ui, win_frame)).response;
 
-            let size = match self.scene {
+            let size = match &self.scene {
                 Scene::Hosting { .. } => vec2(700., 446.),
                 _ => vec2(300., frame_response.rect.height() + 20.),
             };
