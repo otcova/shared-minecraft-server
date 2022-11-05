@@ -5,6 +5,7 @@ use server_repo::get_server_repository;
 use std::{sync::mpsc, thread};
 
 /// Used to send scene changes to the frontend
+#[derive(Clone)]
 pub struct BackendApp {
     sender: mpsc::Sender<Scene>,
     egui_ctx: egui::Context,
@@ -20,14 +21,20 @@ impl BackendApp {
 impl App {
     pub fn pull_data_from_backend(&mut self) {
         if let Some(receiver) = self.backend_receiver.as_mut() {
-            match receiver.try_recv() {
-                Ok(new_scene) => self.scene = new_scene,
-                Err(mpsc::TryRecvError::Disconnected) => self.backend_receiver = None,
-                Err(_) => {}
+            loop {
+                match receiver.try_recv() {
+                    Ok(new_scene) => self.scene = new_scene,
+                    Err(mpsc::TryRecvError::Disconnected) => {
+                        self.backend_receiver = None;
+                        break;
+                    }
+                    Err(_) => break,
+                }
             }
         }
     }
 
+    /// It makes sure that only a single backend process is running.
     fn start_backend_process<F>(&mut self, process: F)
     where
         F: FnOnce(BackendApp) + Send + 'static,

@@ -15,8 +15,10 @@ pub enum Scene {
         command: String,
     },
 
-    Downloading,
-    Uploading,
+    Loading {
+        title: &'static str,
+        progress: f32,
+    },
 }
 
 pub struct App {
@@ -30,6 +32,9 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
+
+        Self::setup_fonts(&cc.egui_ctx);
+        
         Self {
             scene: Scene::Main,
             backend_receiver: None,
@@ -50,8 +55,6 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, win_frame: &mut eframe::Frame) {
         self.pull_data_from_backend();
-
-        Self::setup_fonts(ctx);
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let frame = egui::Frame::default().inner_margin(egui::style::Margin::same(10.));
@@ -157,13 +160,14 @@ impl App {
                     // self.scene = Scene::Hosting;
                 }
             }
-            Scene::Uploading => {
-                ui.heading("Uploading Changes");
-                ui.label("fetching: 45%");
-            }
-            Scene::Downloading => {
-                ui.heading("Downloading Changes");
-                ui.label("fetching: 45%");
+            Scene::Loading { title, progress } => {
+                ui.heading(*title);
+                if *progress > 0. {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{:.1}%", *progress * 100.));
+                        ui.add(ProgressBar::new(*progress));
+                    });
+                }
             }
         }
     }
