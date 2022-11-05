@@ -1,5 +1,6 @@
 mod backend;
 mod local_storage;
+mod user;
 
 use super::*;
 use std::sync::mpsc;

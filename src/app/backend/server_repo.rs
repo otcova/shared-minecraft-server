@@ -4,6 +4,9 @@ use git2::*;
 use std::path::PathBuf;
 use std::process::Command;
 
+const SERVER_REPO_LINK: &str = "https://github.com/otcova-helper/mc-pasqua";
+const SERVER_NAME: &str = "Pasqua";
+
 #[cfg(windows)]
 fn create_hidden_folder(path: &str, folder_name: &str) -> std::io::Result<()> {
     let output = Command::new("powershell")
@@ -43,8 +46,6 @@ pub fn clone_server_repository(server_folder: &PathBuf, app: &BackendApp) -> Rep
     // Clean folder for fresh install
     std::fs::remove_dir_all(&server_folder)
         .expect("Could not delete server folder when reinstalling server files");
-
-    const SERVER_REPO_LINK: &str = "https://github.com/otcova/mc-shared-server";
 
     let mut progress = 0.;
     app.set_scene(Scene::Loading {
@@ -87,13 +88,14 @@ pub fn clone_server_repository(server_folder: &PathBuf, app: &BackendApp) -> Rep
         .clone(SERVER_REPO_LINK, server_folder)
     {
         Ok(repo) => repo,
-        Err(e) => panic!("Could not clone server repo {:?}", e),
+        Err(e) => panic!(
+            "Could not clone server repo '{}'. {:?}",
+            SERVER_REPO_LINK, e
+        ),
     }
 }
 
 pub fn get_server_repository(app: &BackendApp) -> Repository {
-    const SERVER_NAME: &str = "Pasqua";
-
     let server_folder = get_app_folder_path().join(SERVER_NAME);
     std::fs::create_dir_all(&server_folder).expect("Could not create server folder");
 
@@ -114,4 +116,8 @@ pub fn get_server_repository(app: &BackendApp) -> Repository {
             }
         },
     }
+}
+
+pub fn lock_server(repo: Repository, userid: String) {
+    
 }
