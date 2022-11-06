@@ -1,7 +1,7 @@
 use crate::public_ip;
 
-pub fn get_user_id(username: String) -> String {
-    public_ip::get().expect("Could not get public ip address") + ";" + &username
+pub fn id_from_username(username: &String) -> String {
+    public_ip::get().expect("Could not get public ip address") + ";" + username
 }
 
 pub fn username_from_id(user_id: &String) -> String {
