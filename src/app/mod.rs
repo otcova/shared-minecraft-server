@@ -9,16 +9,21 @@ use std::sync::mpsc;
 #[repr(u8)]
 pub enum Scene {
     Main,
-    SomeoneLocked,
+    SomeoneLocked {
+        host_name: String,
+        host_ip: String,
+    },
     SelfLocked,
     Hosting {
         server_output: String,
         command: String,
     },
-
     Loading {
         title: &'static str,
         progress: f32,
+    },
+    RepoConflicts {
+        conflicts_count: usize,
     },
 }
 
@@ -33,9 +38,8 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
-
         Self::setup_fonts(&cc.egui_ctx);
-        
+
         Self {
             scene: Scene::Main,
             backend_receiver: None,
@@ -61,9 +65,12 @@ impl eframe::App for App {
             let frame = egui::Frame::default().inner_margin(egui::style::Margin::same(10.));
             let frame_response = frame.show(ui, |ui| self.draw_scene(ui, win_frame)).response;
 
+            let auto_height = frame_response.rect.height() + 20.;
+
             let size = match &self.scene {
                 Scene::Hosting { .. } => vec2(700., 446.),
-                _ => vec2(300., frame_response.rect.height() + 20.),
+                Scene::RepoConflicts { .. } => vec2(740., auto_height),
+                _ => vec2(300., auto_height),
             };
             self.resize_window(win_frame, size);
         });
@@ -74,32 +81,39 @@ impl App {
     fn setup_fonts(ctx: &egui::Context) {
         use FontFamily::Proportional;
         let mut style = (*ctx.style()).clone();
+
+        style.spacing.text_edit_width = f32::INFINITY;
         style.text_styles = [
-            (TextStyle::Heading, FontId::new(25.0, Proportional)),
-            (TextStyle::Body, FontId::new(17.0, Proportional)),
-            (TextStyle::Monospace, FontId::new(16.0, Proportional)),
-            (TextStyle::Button, FontId::new(20.0, Proportional)),
+            (TextStyle::Heading, FontId::new(25., Proportional)),
+            (TextStyle::Body, FontId::new(17., Proportional)),
+            (TextStyle::Monospace, FontId::new(16., Proportional)),
+            (TextStyle::Button, FontId::new(20., Proportional)),
         ]
         .into();
+
+        style.spacing.button_padding = vec2(10., 10.);
+        style.spacing.item_spacing = vec2(10., 10.);
+
+        if style.visuals.dark_mode {
+            style.visuals.override_text_color = Some(Color32::from_rgb(220, 220, 220));
+        } else {
+            style.visuals.override_text_color = Some(Color32::from_rgb(0, 0, 0));
+        }
+
+        style.visuals.text_cursor_width = 1.;
+
         ctx.set_style(style);
     }
 
-    fn set_style(ui: &mut egui::Ui) {
-        ui.spacing_mut().button_padding = vec2(10., 10.);
-        ui.spacing_mut().item_spacing = vec2(10., 10.);
-
-        if ui.style().visuals.dark_mode {
-            ui.style_mut().visuals.override_text_color = Some(Color32::from_rgb(220, 220, 220));
-        } else {
-            ui.style_mut().visuals.override_text_color = Some(Color32::from_rgb(0, 0, 0));
-        }
-
-        ui.style_mut().visuals.text_cursor_width = 1.;
+    fn set_font_size(ui: &mut egui::Ui, text_style: TextStyle, size: f32) {
+        ui.style_mut()
+            .text_styles
+            .iter_mut()
+            .find(|(style, _)| **style == text_style)
+            .map(|(_, font)| font.size = size);
     }
 
     fn draw_scene(&mut self, ui: &mut egui::Ui, win_frame: &mut eframe::Frame) {
-        Self::set_style(ui);
-
         match &mut self.scene {
             Scene::Main => {
                 ui.heading("Server Offline");
@@ -117,11 +131,11 @@ impl App {
                     self.lock_server();
                 }
             }
-            Scene::SomeoneLocked => {
+            Scene::SomeoneLocked { host_name, host_ip } => {
                 ui.heading("Server Locked");
                 ui.separator();
-                ui.label("Host name: Octova");
-                ui.label("Host ip: 122.261.101.231");
+                ui.label(format!("Host name: {}", host_name));
+                ui.label(format!("Host ip: {}", host_ip));
             }
             Scene::SelfLocked => {
                 ui.heading("You own the Server");
@@ -142,7 +156,23 @@ impl App {
                 server_output,
                 command,
             } => {
-                ui.heading("You are hosting");
+                ui.horizontal_top(|ui| {
+                    ui.heading("You are hosting on:");
+
+                    ui.vertical(|ui| {
+                        let pub_ip = public_ip::get().expect("Could not get public ip");
+                        let font_size = 22.;
+                        Self::set_font_size(ui, TextStyle::Body, font_size);
+                        ui.spacing_mut().item_spacing.y = 0.;
+                        ui.allocate_space(Vec2::new(0., 25. - font_size));
+                        
+                        let link = ui.link(&pub_ip).on_hover_text("Copy to clipboard");
+                        if link.clicked() {
+                            ui.output().copied_text = pub_ip;
+                        }
+                    });
+                });
+
                 ui.separator();
                 Frame::default().show(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(0., 0.);
@@ -154,7 +184,7 @@ impl App {
                             ui.label(server_output.clone());
                         });
 
-                    ui.add(TextEdit::singleline(command).desired_width(f32::INFINITY));
+                    ui.text_edit_singleline(command);
                 });
 
                 if ui.button("Close Server").clicked() {
@@ -170,6 +200,38 @@ impl App {
                     });
                 }
             }
+            Scene::RepoConflicts { conflicts_count } => {
+                ui.heading(&format!("{} Conflicts!", conflicts_count));
+                ui.separator();
+                ui.label(REPO_CONFLICT_EXPLENATION.replace(" ", "  "));
+
+                let mut button = egui::Button::new("Delete all local progress");
+                if ui.style().visuals.dark_mode {
+                    button = button.fill(Color32::from_rgb(130, 10, 10));
+                } else {
+                    button = button.fill(Color32::from_rgb(255, 150, 150));
+                }
+                ui.add(button);
+            }
         }
     }
 }
+
+const REPO_CONFLICT_EXPLENATION: &str = "
+You hosted and modifyed the world to version B.
+ - Local timeline: A (world before your hosting) -- your hosting --> B (world after your hosting)
+
+But your world didn't upload correctly to the database,
+so the database never received version B.
+
+Later another hoster started hosting from the database,
+crated the version C and uploaded to the database.
+ - Database timeline: A (world before your hosting) -- hosting --> C (world after hosting)
+
+Currently there are three options:
+1) Delete world B and keep playing with the current database timeline.
+2) Delete world C and upload to the database the world B.
+3) Do magic... maybe.
+
+If you whant to proceede with the option 1 use the red button. Otherwise contact with a Moderator.
+";
