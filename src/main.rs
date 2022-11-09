@@ -1,6 +1,6 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 #![feature(async_closure)]
-#![allow(dead_code, unused)]
+#![allow(dead_code, unused_variables)]
 
 mod app;
 mod public_ip;
