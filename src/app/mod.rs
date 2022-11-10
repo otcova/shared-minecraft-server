@@ -8,7 +8,7 @@ use std::sync::mpsc;
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum Scene {
-    Main,
+    Unlocked,
     SomeoneLocked {
         host_name: String,
         host_ip: String,
@@ -19,11 +19,16 @@ pub enum Scene {
         command: String,
     },
     Loading {
-        title: &'static str,
+        title: String,
         progress: f32,
     },
     RepoConflicts {
         conflicts_count: usize,
+    },
+    Error {
+        title: String,
+        message: String,
+        details: String,
     },
 }
 
@@ -40,14 +45,19 @@ impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         Self::setup_fonts(&cc.egui_ctx);
 
-        Self {
-            scene: Scene::Main,
+        let mut app = Self {
+            scene: Scene::Loading {
+                title: "Connecting".into(),
+                progress: 0.,
+            },
             backend_receiver: None,
             window_size: None,
             username: local_storage::get_str!(cc.storage, "username", "".into()),
             ram: local_storage::get_num!(cc.storage, "ram", 2),
             egui_ctx: cc.egui_ctx.clone(),
-        }
+        };
+        app.sync_with_database();
+        app
     }
     fn resize_window(&mut self, frame: &mut eframe::Frame, new_size: Vec2) {
         if self.window_size.is_none() || self.window_size.unwrap() != new_size {
@@ -75,6 +85,10 @@ impl eframe::App for App {
             self.resize_window(win_frame, size);
         });
     }
+
+    fn on_close_event(&mut self) -> bool {
+        false
+    }
 }
 
 impl App {
@@ -88,6 +102,7 @@ impl App {
             (TextStyle::Body, FontId::new(17., Proportional)),
             (TextStyle::Monospace, FontId::new(16., Proportional)),
             (TextStyle::Button, FontId::new(20., Proportional)),
+            (TextStyle::Small, FontId::new(15., Proportional)),
         ]
         .into();
 
@@ -115,7 +130,7 @@ impl App {
 
     fn draw_scene(&mut self, ui: &mut egui::Ui, win_frame: &mut eframe::Frame) {
         match &mut self.scene {
-            Scene::Main => {
+            Scene::Unlocked => {
                 ui.heading("Server Offline");
                 ui.separator();
                 ui.horizontal(|ui| {
@@ -138,7 +153,7 @@ impl App {
                 ui.label(format!("Host ip: {}", host_ip));
             }
             Scene::SelfLocked => {
-                ui.heading("You own the Server");
+                ui.heading("You have the Power");
                 ui.separator();
                 ui.horizontal(|ui| {
                     ui.label(format!("Ram: {}GB", self.ram));
@@ -165,7 +180,7 @@ impl App {
                         Self::set_font_size(ui, TextStyle::Body, font_size);
                         ui.spacing_mut().item_spacing.y = 0.;
                         ui.allocate_space(Vec2::new(0., 25. - font_size));
-                        
+
                         let link = ui.link(&pub_ip).on_hover_text("Copy to clipboard");
                         if link.clicked() {
                             ui.output().copied_text = pub_ip;
@@ -188,11 +203,11 @@ impl App {
                 });
 
                 if ui.button("Close Server").clicked() {
-                    // self.scene = Scene::Hosting;
+                    // Scene::Hosting;
                 }
             }
             Scene::Loading { title, progress } => {
-                ui.heading(*title);
+                ui.heading(title);
                 if *progress > 0. {
                     ui.horizontal(|ui| {
                         ui.label(format!("{:.1}%", *progress * 100.));
@@ -212,6 +227,21 @@ impl App {
                     button = button.fill(Color32::from_rgb(255, 150, 150));
                 }
                 ui.add(button);
+            }
+            Scene::Error {
+                title,
+                message,
+                details,
+            } => {
+                ui.heading(title);
+                ui.separator();
+                ui.label(&*message);
+                if details.len() > 0 {
+                    ui.indent("details", |ui| {
+                        ui.small("Details:");
+                        ui.small(&*details);
+                    });
+                }
             }
         }
     }

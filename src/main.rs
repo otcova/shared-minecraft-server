@@ -1,5 +1,4 @@
 // #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
-#![feature(async_closure)]
 #![allow(dead_code, unused_variables)]
 
 mod app;
@@ -11,7 +10,7 @@ use egui::*;
 
 fn main() {
     public_ip::fetch();
-    
+
     let mut options = eframe::NativeOptions::default();
     options.initial_window_size = Some(vec2(300., 200.));
     options.resizable = false;
