@@ -12,7 +12,7 @@ fn main() {
     public_ip::fetch();
 
     let mut options = eframe::NativeOptions::default();
-    options.initial_window_size = Some(vec2(300., 200.));
+    options.initial_window_size = Some(vec2(300., 0.));
     options.resizable = false;
     options.follow_system_theme = true;
 
