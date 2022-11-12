@@ -1,8 +1,11 @@
+mod credentials;
 mod error;
 
 pub use error::Error;
 use git2::{build::*, *};
 use std::path::{Path, PathBuf};
+
+use self::credentials::create_credentials;
 
 use super::DatabaseUser;
 
@@ -87,9 +90,7 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
         let config = git2::Config::open_default()?;
 
         let mut cbs = RemoteCallbacks::new();
-        cbs.credentials(|url, username, allowed| {
-            git2::Cred::credential_helper(&config, url, username)
-        });
+        cbs.credentials(|url, username, _allowed| create_credentials(&config, url, username));
 
         let mut push_options = PushOptions::new();
         push_options.remote_callbacks(cbs);
@@ -125,8 +126,7 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
             return Ok(Some(("Could not create signature.".into(), err.into())));
         }
         // try to setup a credential
-        let cred = CredentialHelper::new(origin_url);
-        if let Err(err) = git2::Cred::credential_helper(&config, origin_url, None) {
+        if let Err(err) = create_credentials(&config, origin_url, None) {
             return Ok(Some(("Could not create credentials".into(), err.into())));
         }
 

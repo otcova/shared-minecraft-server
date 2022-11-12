@@ -62,8 +62,9 @@ impl Backend {
             .expect("Could not update scene");
 
         if let Err(err) = self.database_action.send(database::Action::Lock) {
+            let err = format!("Error on send action to database: {}", err);
             self.update_scene
-                .send(Scene::fatal_error("Could not send action"))
+                .send(Scene::fatal_error(&err))
                 .expect("Could not update scene");
         }
     }
@@ -77,9 +78,10 @@ impl Backend {
             .expect("Could not update scene");
 
         if let Err(err) = self.database_action.send(database::Action::Unlock) {
+            let err = format!("Error on send action to database: {}", err);
             self.update_scene
-                .send(Scene::fatal_error("Could not send action"))
-                .expect("Could not update scene");
+                .send(Scene::fatal_error(&err))
+                .expect("Could not update scene{:?}");
         }
     }
 

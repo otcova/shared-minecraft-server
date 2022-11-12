@@ -1,7 +1,8 @@
-// #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(dead_code, unused_variables)]
 
 mod app;
+mod process;
 mod public_ip;
 
 use app::*;

@@ -48,7 +48,6 @@ pub struct App {
     scene: Scene,
     ram: u8,
     backend: Backend,
-    egui_ctx: egui::Context,
     try_close: bool,
 }
 
@@ -63,7 +62,6 @@ impl App {
             },
             backend: Backend::new(&cc.egui_ctx),
             ram: local_storage::get_num!(cc.storage, "ram", 2),
-            egui_ctx: cc.egui_ctx.clone(),
             try_close: false,
         }
     }

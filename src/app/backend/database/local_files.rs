@@ -1,20 +1,17 @@
+use crate::process;
 use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
 #[cfg(windows)]
 fn create_hidden_folder(path: &str, folder_name: &str) -> io::Result<()> {
-    let output = Command::new("powershell")
-        .args([
-            "-c",
-            &format!(
-                "cd \"{}\"; mkdir \"{}\"; attrib +h +s \"{1}\"",
-                path, folder_name
-            ),
-        ])
-        .output()?;
-    format!("[cmd] {:?}", output);
-    Ok(())
+    if let Err(output) = process::run_command(&format!(
+        "cd \"{}\"; mkdir \"{}\"; attrib +h +s \"{1}\"",
+        path, folder_name
+    ))? {
+        Err(io::Error::new(io::ErrorKind::Other, output))
+    } else {
+        Ok(())
+    }
 }
 
 #[cfg(windows)]
