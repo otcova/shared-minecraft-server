@@ -2,8 +2,10 @@ mod backend;
 mod local_storage;
 mod user;
 
+use eframe::egui::style::Margin;
+
+use self::backend::Backend;
 use super::*;
-use std::sync::mpsc;
 
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
@@ -32,62 +34,103 @@ pub enum Scene {
     },
 }
 
+impl Scene {
+    fn fatal_error(details: &str) -> Scene {
+        Scene::Error {
+            title: "Error".into(),
+            message: "Contact with a moderator.".into(),
+            details: String::from(details),
+        }
+    }
+}
+
 pub struct App {
-    window_size: Option<Vec2>,
     scene: Scene,
-    username: String,
     ram: u8,
-    backend_receiver: Option<mpsc::Receiver<Scene>>,
+    backend: Backend,
     egui_ctx: egui::Context,
+    try_close: bool,
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
         Self::setup_fonts(&cc.egui_ctx);
 
-        let mut app = Self {
+        Self {
             scene: Scene::Loading {
                 title: "Connecting".into(),
                 progress: 0.,
             },
-            backend_receiver: None,
-            window_size: None,
-            username: local_storage::get_str!(cc.storage, "username", "".into()),
+            backend: Backend::new(&cc.egui_ctx),
             ram: local_storage::get_num!(cc.storage, "ram", 2),
             egui_ctx: cc.egui_ctx.clone(),
-        };
-        app.sync_with_database();
-        app
+            try_close: false,
+        }
     }
+
+    /// return true if the window has resized
     fn resize_window(&mut self, frame: &mut eframe::Frame, new_size: Vec2) {
-        if self.window_size.is_none() || self.window_size.unwrap() != new_size {
+        if frame.info().window_info.size != new_size {
             frame.set_window_size(new_size);
-            self.window_size = Some(new_size);
+        }
+    }
+
+    fn can_close(&self) -> bool {
+        match &self.scene {
+            Scene::RepoConflicts { .. }
+            | Scene::Error { .. }
+            | Scene::Unlocked
+            | Scene::SomeoneLocked { .. } => true,
+            _ => false,
         }
     }
 }
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, win_frame: &mut eframe::Frame) {
-        self.pull_data_from_backend();
+        match &self.scene {
+            Scene::Error { .. } => {}
+            Scene::RepoConflicts { .. } => {}
+            _ => {
+                if let Some(new_scene) = self.backend.update_scene() {
+                    self.scene = new_scene;
+                }
+            }
+        }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            let frame = egui::Frame::default().inner_margin(egui::style::Margin::same(10.));
-            let frame_response = frame.show(ui, |ui| self.draw_scene(ui, win_frame)).response;
+        if self.try_close {
+            if self.can_close() {
+                win_frame.close()
+            } else {
+                self.backend.unlock_server()
+            }
+        }
 
-            let auto_height = frame_response.rect.height() + 20.;
+        let margin = 18.;
+        let central_panel_frame = Frame::none()
+            .fill(ctx.style().visuals.window_fill())
+            .inner_margin(Margin::same(margin));
 
-            let size = match &self.scene {
-                Scene::Hosting { .. } => vec2(700., 446.),
-                Scene::RepoConflicts { .. } => vec2(740., auto_height),
-                _ => vec2(300., auto_height),
-            };
-            self.resize_window(win_frame, size);
-        });
+        CentralPanel::default()
+            .frame(central_panel_frame)
+            .show(ctx, |ui| {
+                let frame = Frame::default().show(ui, |ui| self.draw_scene(ui, win_frame));
+                let auto_height = frame.response.rect.height() + margin * 2.;
+
+                let size = match &self.scene {
+                    Scene::Hosting { .. } => vec2(700., 446.),
+                    Scene::RepoConflicts { .. } => vec2(740., auto_height),
+                    _ => vec2(300., auto_height),
+                };
+
+                self.resize_window(win_frame, size);
+            });
     }
 
     fn on_close_event(&mut self) -> bool {
-        false
+        self.backend.unlock_server();
+        self.try_close = true;
+        self.can_close()
     }
 }
 
@@ -133,24 +176,19 @@ impl App {
             Scene::Unlocked => {
                 ui.heading("Server Offline");
                 ui.separator();
-                ui.horizontal(|ui| {
-                    ui.label("Username:");
-                    if ui.text_edit_singleline(&mut self.username).changed() {
-                        local_storage::set!(win_frame, "username", &self.username);
-                    }
-                });
-
-                ui.set_enabled(self.username.len() > 0);
-
                 if ui.button("Lock Server").clicked() {
-                    self.lock_server();
+                    self.backend.lock_server();
                 }
             }
             Scene::SomeoneLocked { host_name, host_ip } => {
                 ui.heading("Server Locked");
                 ui.separator();
-                ui.label(format!("Host name: {}", host_name));
-                ui.label(format!("Host ip: {}", host_ip));
+                if host_ip.len() == 0 {
+                    ui.label(format!("Host: {}", host_name));
+                } else {
+                    ui.label(format!("Host name: {}", host_name));
+                    ui.label(format!("Host ip: {}", host_ip));
+                }
             }
             Scene::SelfLocked => {
                 ui.heading("You have the Power");

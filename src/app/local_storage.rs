@@ -6,20 +6,6 @@ macro_rules! set {
     };
 }
 
-macro_rules! get_str {
-    ($storage:expr, $key:tt, $default:expr) => {
-        if let Some(ref storage) = $storage {
-            if let Some(data) = storage.get_string($key) {
-                data
-            } else {
-                $default
-            }
-        } else {
-            $default
-        }
-    };
-}
-
 macro_rules! get_num {
     ($storage:expr, $key:tt, $default:expr) => {
         if let Some(ref storage) = $storage {
@@ -35,5 +21,4 @@ macro_rules! get_num {
 }
 
 pub(crate) use get_num;
-pub(crate) use get_str;
 pub(crate) use set;
