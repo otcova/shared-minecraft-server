@@ -7,16 +7,16 @@ use std::path::{Path, PathBuf};
 
 use self::credentials::create_credentials;
 
-use super::DatabaseUser;
+use super::BackendUser;
 
-pub struct Database<'a, U: DatabaseUser> {
+pub struct Database<'a> {
     path: PathBuf,
     repo: Repository,
-    pub user: &'a U,
+    pub user: &'a BackendUser,
 }
 
-impl<'a, U: DatabaseUser> Database<'a, U> {
-    pub fn new(user: &'a U, path: &PathBuf, origin_url: &str) -> Result<Self, Error> {
+impl<'a> Database<'a> {
+    pub fn new(user: &'a BackendUser, path: &PathBuf, origin_url: &str) -> Result<Self, Error> {
         if let Some(repo) = Self::open_repo(&path)? {
             Ok(Self {
                 path: path.clone(),
@@ -87,14 +87,7 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
     }
 
     pub fn push(&self) -> Result<(), Error> {
-        let config = git2::Config::open_default()?;
-
-        let mut cbs = RemoteCallbacks::new();
-        cbs.credentials(|url, username, _allowed| create_credentials(&config, url, username));
-
-        let mut push_options = PushOptions::new();
-        push_options.remote_callbacks(cbs);
-
+        let mut push_options = new_push_options_with_progress(self.user)?;
         let mut remote = self.repo.find_remote("origin")?;
         remote.push(&["refs/heads/main"], Some(&mut push_options))?;
         Ok(())
@@ -152,7 +145,10 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
                         if status.is_empty() {
                             SKIP
                         } else {
-                            found_changes = true;
+                            if !found_changes {
+                                found_changes = true;
+                                self.user.report_progress("Listing changes".into(), 0.);
+                            }
                             ADD
                         }
                     }
@@ -173,6 +169,8 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
         if found_changes {
             index.write()?;
             let tree = self.repo.find_tree(index.write_tree_to(&self.repo)?)?;
+
+            self.user.report_progress("Packing changes".into(), 0.);
             self.commit(message, &tree, &[&self.repo.head()?.peel_to_commit()?])?;
         }
         Ok(())
@@ -184,7 +182,11 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
         Ok(())
     }
 
-    fn clone_repo(origin_url: &str, dst: &PathBuf, user: &U) -> Result<Repository, Error> {
+    fn clone_repo(
+        origin_url: &str,
+        dst: &PathBuf,
+        user: &BackendUser,
+    ) -> Result<Repository, Error> {
         std::fs::create_dir_all(&dst)?;
 
         // Clean folder for fresh install
@@ -320,7 +322,33 @@ impl<'a, U: DatabaseUser> Database<'a, U> {
     }
 }
 
-fn new_fetch_options_with_progress<U: DatabaseUser>(user: &U) -> FetchOptions {
+fn new_push_options_with_progress(user: &BackendUser) -> Result<PushOptions, Error> {
+    let mut cbs = RemoteCallbacks::new();
+
+    let config = git2::Config::open_default()?;
+    cbs.credentials(move |url, username, _allowed| create_credentials(&config, url, username));
+
+    let mut past_progress_ratio = 0.;
+    cbs.push_transfer_progress(move |done, total, _| {
+        if total == 0 {
+            return;
+        }
+
+        let mut progress_ratio = done as f32 / total as f32;
+        progress_ratio = (1000. * progress_ratio).round() / 1000.;
+
+        if past_progress_ratio != progress_ratio {
+            past_progress_ratio = progress_ratio;
+            user.report_progress("Uploading".into(), progress_ratio);
+        }
+    });
+
+    let mut options = PushOptions::new();
+    options.remote_callbacks(cbs);
+    Ok(options)
+}
+
+fn new_fetch_options_with_progress(user: &BackendUser) -> FetchOptions {
     let mut progress_callback = RemoteCallbacks::new();
 
     let mut past_progress_ratio = 0.;
@@ -341,7 +369,7 @@ fn new_fetch_options_with_progress<U: DatabaseUser>(user: &U) -> FetchOptions {
     fetch_options
 }
 
-fn new_checkout_with_progress<U: DatabaseUser>(user: &U) -> CheckoutBuilder {
+fn new_checkout_with_progress(user: &BackendUser) -> CheckoutBuilder {
     let mut checkout = CheckoutBuilder::new();
 
     let mut past_progress_ratio = 0.;

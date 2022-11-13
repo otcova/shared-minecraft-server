@@ -1,21 +1,17 @@
 mod git;
-mod local_files;
+pub mod local_files;
 
-use self::git::{Database, Error};
+use self::git::Database;
+pub use self::git::Error;
 use self::local_files::HOSTER_FILE_LOCAL_PATH;
 use super::*;
 use crate::app::user;
 
 const SERVER_REPO_URL: &str = "https://github.com/otcova-helper/mc-pasqua";
 
-pub trait DatabaseUser {
-    fn report_progress(&self, process_type: String, done_ratio: f32);
-    fn set_scene(&self, scene: Scene);
-}
-
-fn try_sync_with_origin<U: DatabaseUser, F>(user: &U, on_sync: F) -> Result<(), Error>
+fn try_sync_with_origin<F>(user: &BackendUser, on_sync: F) -> Result<(), Error>
 where
-    F: FnOnce(&Database<U>) -> Result<(), Error>,
+    F: FnOnce(&Database) -> Result<(), Error>,
 {
     let local_files_path = local_files::get_app_folder_path()?;
     let database = Database::new(user, &local_files_path, SERVER_REPO_URL)?;
@@ -63,7 +59,7 @@ pub enum Action {
     Lock,
 }
 
-pub fn connect_to_database<U: DatabaseUser, F>(user: &U, mut on_sync: F) -> Result<(), Error>
+pub fn connect_to_database<F>(user: &BackendUser, mut on_sync: F) -> Result<(), Error>
 where
     F: FnMut() -> Action,
 {

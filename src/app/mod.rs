@@ -2,13 +2,12 @@ mod backend;
 mod local_storage;
 mod user;
 
-use eframe::egui::style::Margin;
-
-use self::backend::Backend;
+use self::backend::{Backend, CommandSender};
 use super::*;
+use eframe::egui::style::Margin;
+use std::sync::{Arc, Mutex};
 
-#[derive(Debug, Clone, PartialEq)]
-#[repr(u8)]
+#[derive(Debug)]
 pub enum Scene {
     Unlocked,
     SomeoneLocked {
@@ -17,8 +16,9 @@ pub enum Scene {
     },
     SelfLocked,
     Hosting {
-        server_output: String,
+        server_output: Arc<Mutex<String>>,
         command: String,
+        command_sender: CommandSender,
     },
     Loading {
         title: String,
@@ -116,7 +116,7 @@ impl eframe::App for App {
                 let auto_height = frame.response.rect.height() + margin * 2.;
 
                 let size = match &self.scene {
-                    Scene::Hosting { .. } => vec2(700., 446.),
+                    Scene::Hosting { .. } => vec2(700., auto_height),
                     Scene::RepoConflicts { .. } => vec2(740., auto_height),
                     _ => vec2(300., auto_height),
                 };
@@ -126,6 +126,17 @@ impl eframe::App for App {
     }
 
     fn on_close_event(&mut self) -> bool {
+        match &mut self.scene {
+            Scene::Hosting { command_sender, .. } => {
+                if let Err(err) = command_sender.send_stop() {
+                    self.scene = Scene::Loading {
+                        title: "Closing Minecraft Server".into(),
+                        progress: 0.,
+                    };
+                }
+            }
+            _ => {}
+        };
         self.backend.unlock_server();
         self.try_close = true;
         self.can_close()
@@ -200,12 +211,13 @@ impl App {
                 });
 
                 if ui.button("Start Server").clicked() {
-                    // self.start_server();
+                    self.backend.start_server(self.ram);
                 }
             }
             Scene::Hosting {
                 server_output,
                 command,
+                command_sender,
             } => {
                 ui.horizontal_top(|ui| {
                     ui.heading("You are hosting on:");
@@ -225,21 +237,34 @@ impl App {
                 });
 
                 ui.separator();
+
+                let Ok(text) = server_output.lock() else {
+                    self.scene = Scene::fatal_error("Backend panicked while holding a lock.");
+                    ui.ctx().request_repaint();
+                    return;
+                };
+
                 Frame::default().show(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(0., 0.);
+
                     ScrollArea::vertical()
                         .auto_shrink([false, false])
                         .stick_to_bottom(true)
                         .max_height(300.)
                         .show(ui, |ui| {
-                            ui.label(server_output.clone());
+                            ui.label(&*text);
                         });
 
-                    ui.text_edit_singleline(command);
+                    let input = ui.text_edit_singleline(command);
+                    if input.lost_focus() && ui.input().key_down(Key::Enter) {
+                        let _ = command_sender.send(command);
+                        *command = "".into();
+                        input.request_focus();
+                    }
                 });
 
                 if ui.button("Close Server").clicked() {
-                    // Scene::Hosting;
+                    let _ = command_sender.send_stop();
                 }
             }
             Scene::Loading { title, progress } => {
