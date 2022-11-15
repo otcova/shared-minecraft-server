@@ -4,6 +4,8 @@
 mod app;
 mod process;
 mod public_ip;
+mod git;
+mod error;
 
 use app::*;
 use eframe::egui;

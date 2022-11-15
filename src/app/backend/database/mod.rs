@@ -1,25 +1,31 @@
-mod git;
+// mod git;
 pub mod local_files;
 
-use self::git::Database;
-pub use self::git::Error;
 use self::local_files::HOSTER_FILE_LOCAL_PATH;
 use super::*;
 use crate::app::user;
+use crate::error::Error;
+use crate::git::{Git, MergeStatus, StatusReporter};
 
 const SERVER_REPO_URL: &str = "https://github.com/otcova-helper/mc-pasqua";
 
+impl StatusReporter for &BackendUser {
+    fn status_change(&self, operation: &'static str, progress: Option<f32>) {
+        self.report_progress(operation.into(), progress.unwrap_or(0.))
+    }
+}
+
 fn try_sync_with_origin<F>(user: &BackendUser, on_sync: F) -> Result<(), Error>
 where
-    F: FnOnce(&Database) -> Result<(), Error>,
+    F: FnOnce(&Git<&BackendUser>) -> Result<(), Error>,
 {
     let local_files_path = local_files::get_app_folder_path()?;
-    let database = Database::new(user, &local_files_path, SERVER_REPO_URL)?;
+    let database = Git::<&BackendUser>::new(user, &local_files_path, SERVER_REPO_URL)?;
 
-    if let Some((message, error)) = database.check_local_credentials(SERVER_REPO_URL)? {
+    if let Err((message, error)) = database.check_credentials(SERVER_REPO_URL)? {
         user.set_scene(Scene::Error {
             title: "You need to setup your credentials".into(),
-            message,
+            message: message.into(),
             details: if error == Error::unknown() {
                 "".into()
             } else {
@@ -31,23 +37,24 @@ where
 
     database.commit_all("before try_sync")?;
 
-    let conflicts = database.pull()?;
-    if conflicts.len() > 0 {
-        if conflicts.len() == 1 && conflicts[0] == HOSTER_FILE_LOCAL_PATH {
-            database.discard_local()?;
-            return try_sync_with_origin(user, on_sync);
-        } else {
-            database.user.set_scene(Scene::RepoConflicts {
-                conflicts_count: conflicts.len(),
-            });
+    match database.pull()? {
+        MergeStatus::Conflicts(conflicts) => {
+            if conflicts.len() == 1 && conflicts[0] == HOSTER_FILE_LOCAL_PATH {
+                database.reset_hard_to_origin()?;
+                try_sync_with_origin(user, on_sync)
+            } else {
+                user.set_scene(Scene::RepoConflicts {
+                    conflicts_count: conflicts.len(),
+                });
 
-            return Ok(());
+                Ok(())
+            }
+        }
+        MergeStatus::Ok => {
+            database.push()?;
+            on_sync(&database)
         }
     }
-
-    database.push()?;
-
-    on_sync(&database)
 }
 
 #[derive(Copy, Clone)]
@@ -66,14 +73,14 @@ where
     try_sync_with_origin(user, move |database| {
         let action = on_sync();
 
-        let current_host = local_files::load_current_host(database.path())?;
-        let user_id = user::id_from(&database.get_username()?, &database.get_email()?);
+        let current_host = local_files::load_current_host(database.work_dir())?;
+        let user_id = user::id_from(&git::get_username()?, &git::get_email()?);
 
         if current_host.as_ref() == Some(&user_id) {
             match action {
                 Action::Lock => user.set_scene(Scene::SelfLocked),
                 Action::Unlock => {
-                    local_files::set_current_host(database.path(), None)?;
+                    local_files::set_current_host(database.work_dir(), None)?;
                     connect_to_database(user, on_sync)?;
                 }
             }
@@ -93,7 +100,7 @@ where
             match action {
                 Action::Unlock => user.set_scene(Scene::Unlocked),
                 Action::Lock => {
-                    local_files::set_current_host(database.path(), Some(&user_id))?;
+                    local_files::set_current_host(database.work_dir(), Some(&user_id))?;
                     connect_to_database(user, on_sync)?;
                 }
             }

@@ -11,9 +11,16 @@ pub struct Error {
 
 impl Error {
     #[track_caller]
+    pub fn from_str<S: AsRef<str>>(msg: S) -> Self {
+        Self {
+            inner: git2::Error::new(ErrorCode::GenericError, ErrorClass::None, msg),
+            location: std::panic::Location::caller(),
+        }
+    }
+    #[track_caller]
     pub fn unknown() -> Self {
         Self {
-            inner: git2::Error::new(ErrorCode::Ambiguous, ErrorClass::None, "unknown"),
+            inner: git2::Error::new(ErrorCode::GenericError, ErrorClass::None, "unknown"),
             location: std::panic::Location::caller(),
         }
     }
