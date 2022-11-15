@@ -154,7 +154,7 @@ impl Backend {
                         };
                         action.clone()
                     });
-                    
+
                     match action {
                         Action::OpenServer(_) => match try_pull_until_last(&action_recv) {
                             Received::Some(recv_action) => action = recv_action,

@@ -2,10 +2,10 @@
 #![allow(dead_code, unused_variables)]
 
 mod app;
+mod error;
+mod git;
 mod process;
 mod public_ip;
-mod git;
-mod error;
 
 use app::*;
 use eframe::egui;

@@ -163,7 +163,7 @@ impl<R: StatusReporter> Git<R> {
         fetch_options.download_tags(git2::AutotagOption::All);
         remote.fetch(&["main"], Some(&mut fetch_options), None)?;
 
-        let fetch_head = self.repo.find_reference("HEAD")?;
+        let fetch_head = self.repo.find_reference("FETCH_HEAD")?;
         let fetch_commit = self.repo.reference_to_annotated_commit(&fetch_head)?;
 
         self.merge("main", fetch_commit)

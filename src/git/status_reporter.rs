@@ -22,10 +22,10 @@ impl<R: StatusReporter> From<R> for GitStatusReporter<R> {
 }
 
 impl<R: StatusReporter> Deref for GitStatusReporter<R> {
-	type Target = R;
+    type Target = R;
     fn deref(&self) -> &Self::Target {
-		&self.reporter
-	}
+        &self.reporter
+    }
 }
 
 impl<R: StatusReporter> GitStatusReporter<R> {
@@ -57,7 +57,7 @@ impl<R: StatusReporter> GitStatusReporter<R> {
 
     pub fn new_push_options(&self) -> Result<PushOptions, Error> {
         let mut cbs = self.new_remote_callbacks("Uploading");
-        
+
         let config = git2::Config::open_default()?;
         cbs.credentials(move |url, username, _| create_credentials(&config, url, username));
 
