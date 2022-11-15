@@ -155,10 +155,22 @@ impl Backend {
                         action.clone()
                     });
                     
-                    const COOLDOWN: Duration = Duration::from_secs(5);
-                    action = action_recv.recv_timeout(COOLDOWN).unwrap_or(action);
+                    match action {
+                        Action::OpenServer(_) => match try_pull_until_last(&action_recv) {
+                            Received::Some(recv_action) => action = recv_action,
+                            Received::Empty => {}
+                            Received::ChannelClosed => {
+                                backend_user.fatal_error("Backend action channel closed.");
+                            }
+                        },
+                        _ => {
+                            const COOLDOWN: Duration = Duration::from_secs(5);
+                            action = action_recv.recv_timeout(COOLDOWN).unwrap_or(action);
+                        }
+                    }
                 }
                 Action::OpenServer(ram) => {
+                    println!("S");
                     Self::open_server(&backend_user, ram);
                     let _ = try_pull_until_last(&action_recv);
                     action = Action::Database(database::Action::Unlock);
@@ -198,7 +210,6 @@ impl Backend {
     }
 
     fn run_server(backend_user: &BackendUser, mut process: Child) {
-
         let Some(stderr) = process.stderr.take() else {
             backend_user.fatal_error("Could not get stderr from the Minecraft Server process.");
             return;
@@ -242,7 +253,7 @@ impl Backend {
         for line in stderr_reader.lines() {
             println!("> {:?}", line);
         }
-        
+
         match process.wait() {
             Err(err) => backend_user.fatal_error(&format!(
                 "Could not launch successfuly the Minecraft Server because of: {:?}",

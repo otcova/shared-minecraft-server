@@ -30,7 +30,7 @@ pub fn get_app_folder_path() -> io::Result<PathBuf> {
         let Some(app_data_path) = app_data_path .to_str() else {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                "APP_DATA directory is has invalid unicode characters")
+                "APP_DATA directory has invalid unicode characters")
             );
         };
         create_hidden_folder(app_data_path, APP_FOLDER_NAME)?;
