@@ -51,12 +51,12 @@ impl<R: StatusReporter> GitStatusReporter<R> {
 
     pub fn new_fetch_options(&self) -> FetchOptions {
         let mut fetch_options = FetchOptions::new();
-        fetch_options.remote_callbacks(self.new_remote_callbacks("Downloading"));
+        fetch_options.remote_callbacks(self.new_remote_callbacks());
         fetch_options
     }
 
     pub fn new_push_options(&self) -> Result<PushOptions, Error> {
-        let mut cbs = self.new_remote_callbacks("Uploading");
+        let mut cbs = self.new_remote_callbacks();
 
         let config = git2::Config::open_default()?;
         cbs.credentials(move |url, username, _| create_credentials(&config, url, username));
@@ -66,15 +66,28 @@ impl<R: StatusReporter> GitStatusReporter<R> {
         Ok(push_options)
     }
 
-    fn new_remote_callbacks(&self, operation: &'static str) -> RemoteCallbacks {
+    fn new_remote_callbacks(&self) -> RemoteCallbacks {
         let mut progress_callbacks = RemoteCallbacks::new();
 
+        progress_callbacks.push_transfer_progress(move |current, total, _| {
+            if total != 0 {
+                if current == 0 {
+                    self.reporter.status_change("Uploading", None);
+                } else {
+                    let progress = current as f32 / total as f32;
+                    self.reporter.status_change("Uploading", Some(progress));
+                }
+            }
+        });
+
         progress_callbacks.transfer_progress(move |stats| {
-            if stats.indexed_objects() == 0 {
-                self.reporter.status_change(operation, None);
-            } else {
-                let progress = stats.indexed_objects() as f32 / stats.total_objects() as f32;
-                self.reporter.status_change(operation, Some(progress));
+            if stats.total_objects() != 0 {
+                if stats.indexed_objects() == 0 {
+                    self.reporter.status_change("Downloading", None);
+                } else {
+                    let progress = stats.indexed_objects() as f32 / stats.total_objects() as f32;
+                    self.reporter.status_change("Downloading", Some(progress));
+                }
             }
             true
         });
