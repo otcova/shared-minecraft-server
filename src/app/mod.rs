@@ -277,7 +277,13 @@ impl App {
                 }
             }
             Scene::RepoConflicts { conflicts_count } => {
-                ui.heading(&format!("{} Conflicts!", conflicts_count));
+                if *conflicts_count == 0 {
+                    ui.heading("Conflicts!");
+                } else if *conflicts_count == 1 {
+                    ui.heading("Conflict!");
+                } else {
+                    ui.heading(&format!("{} Conflicts!", conflicts_count));
+                }
                 ui.separator();
                 ui.label(REPO_CONFLICT_EXPLENATION.replace(" ", "  "));
 
