@@ -3,6 +3,8 @@ use std::{
     thread,
 };
 
+use crate::fetch::fetch_str;
+
 #[derive(Clone)]
 enum PubIpCache {
     /// The public ip is not on the cache, it needs to be fetched.
@@ -31,7 +33,7 @@ pub fn fetch() {
                     "https://api.ipify.org",
                 ]
                 .iter()
-                .find_map(|url| fetch_url(url));
+                .find_map(|url| fetch_str(url));
 
                 if let Some(ip) = ip {
                     *PUB_IP_CACHE.write().unwrap() = PubIpCache::Ip(ip);
@@ -69,14 +71,5 @@ pub fn get() -> Option<String> {
             }
             get()
         }
-    }
-}
-
-fn fetch_url(url: &str) -> Option<String> {
-    let mut body = Vec::new();
-    if http_req::request::get(url, &mut body).is_ok() {
-        String::from_utf8(body).ok()
-    } else {
-        None
     }
 }

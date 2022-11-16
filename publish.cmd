@@ -1,0 +1,1 @@
+@cargo post build --release

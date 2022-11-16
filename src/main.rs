@@ -2,6 +2,8 @@
 #![allow(dead_code, unused_variables)]
 
 mod app;
+mod fetch;
+mod autoupdate;
 mod error;
 mod git;
 mod process;
@@ -12,6 +14,7 @@ use eframe::egui;
 use egui::*;
 
 fn main() {
+    autoupdate::update();
     public_ip::fetch();
 
     let mut options = eframe::NativeOptions::default();
