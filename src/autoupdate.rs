@@ -31,7 +31,7 @@ fn install_new_version() -> io::Result<()> {
         write(&temp_exe_path, new_app_data)?;
         rename(&temp_exe_path, &exe_path)?;
 
-        run_detached_process(&temp_exe_path)?;
+        run_detached_process(&exe_path)?;
         exit(0);
     }
     Ok(())

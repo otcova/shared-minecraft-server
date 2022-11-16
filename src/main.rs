@@ -2,9 +2,9 @@
 #![allow(dead_code, unused_variables)]
 
 mod app;
-mod fetch;
 mod autoupdate;
 mod error;
+mod fetch;
 mod git;
 mod process;
 mod public_ip;
