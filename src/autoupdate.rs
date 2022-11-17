@@ -11,7 +11,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const REMOTE_VERSION_ULR: &str =
     "https://raw.githubusercontent.com/otcova/shared-minecraft-server/main/releases/last/version.txt";
 pub const REMOTE_APP_ULR: &str =
-    "https://raw.githubusercontent.com/otcova/shared-minecraft-server/main/releases/last/app.exe";
+    "https://raw.githubusercontent.com/otcova/shared-minecraft-server/main/releases/last/Shared Minecraft Server.exe";
 
 /// If there is a new version it will download it and restart the application.
 pub fn update() {

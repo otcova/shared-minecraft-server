@@ -11,7 +11,7 @@ fn main() {
 
         copy(
             "target/release/shared-minecraft-server.exe",
-            "releases/last/app.exe",
+            "releases/last/Shared Minecraft Server.exe",
         )
         .expect("Could not copy app executable");
     }
