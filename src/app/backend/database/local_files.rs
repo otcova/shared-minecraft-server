@@ -17,7 +17,7 @@ fn create_hidden_folder(path: &str, folder_name: &str) -> io::Result<()> {
 #[cfg(windows)]
 pub fn get_app_folder_path() -> io::Result<PathBuf> {
     const APP_FOLDER_NAME: &str = "Octova - Shared Minecraft Server";
-    const SERVER_NAME: &str = "Pasqua";
+    const SERVER_NAME: &str = "Vsinf";
 
     let Some(base_dirs) = directories::BaseDirs::new() else {
         return Err(io::Error::new(io::ErrorKind::NotFound, "Could not found APP_DATA directory"));
