@@ -1,49 +1,69 @@
-use std::error;
 use std::panic::Location;
 
-use git2::{ErrorClass, ErrorCode};
+#[derive(Debug)]
+enum InnerError {
+    Unknown,
+    None(String),
+    Io(std::io::Error),
+    Git(git2::Error),
+    Http(http_req::error::Error),
+}
 
 #[derive(Debug)]
 pub struct Error {
-    inner: git2::Error,
+    inner: InnerError,
     location: &'static Location<'static>,
 }
 
 impl Error {
     #[track_caller]
-    pub fn from_str<S: AsRef<str>>(msg: S) -> Self {
+    pub fn from_str<S: Into<String>>(msg: S) -> Self {
         Self {
-            inner: git2::Error::new(ErrorCode::GenericError, ErrorClass::None, msg),
+            inner: InnerError::None(msg.into()),
             location: std::panic::Location::caller(),
         }
     }
     #[track_caller]
     pub fn unknown() -> Self {
         Self {
-            inner: git2::Error::new(ErrorCode::GenericError, ErrorClass::None, "unknown"),
+            inner: InnerError::Unknown,
             location: std::panic::Location::caller(),
+        }
+    }
+
+    pub fn is_unknown(&self) -> bool {
+        match &self.inner {
+            InnerError::Unknown => true,
+            _ => false,
         }
     }
 }
 
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self.inner.eq(&other.inner)
-    }
-    fn ne(&self, other: &Self) -> bool {
-        self.inner.ne(&other.inner)
-    }
-}
-
-impl error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        Some(&self.inner)
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.inner {
+            InnerError::Unknown => None,
+            InnerError::None(_) => None,
+            InnerError::Io(err) => Some(err),
+            InnerError::Git(err) => Some(err),
+            InnerError::Http(err) => Some(err),
+        }
     }
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}, {}", self.inner, self.location)
+        write!(f, "{:?}, {}", self.inner, self.location)
+    }
+}
+
+impl From<http_req::error::Error> for Error {
+    #[track_caller]
+    fn from(err: http_req::error::Error) -> Self {
+        Error {
+            inner: InnerError::Http(err),
+            location: std::panic::Location::caller(),
+        }
     }
 }
 
@@ -51,7 +71,7 @@ impl From<git2::Error> for Error {
     #[track_caller]
     fn from(err: git2::Error) -> Self {
         Error {
-            inner: err,
+            inner: InnerError::Git(err),
             location: std::panic::Location::caller(),
         }
     }
@@ -61,7 +81,7 @@ impl From<std::io::Error> for Error {
     #[track_caller]
     fn from(err: std::io::Error) -> Self {
         Error {
-            inner: git2::Error::new(ErrorCode::Ambiguous, ErrorClass::Os, err.to_string()),
+            inner: InnerError::Io(err),
             location: std::panic::Location::caller(),
         }
     }

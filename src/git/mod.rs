@@ -85,7 +85,7 @@ impl<R: StatusReporter> Git<R> {
             return if let Err(err) = config_res {
                 Ok(Err((msg, err.into())))
             } else {
-            Ok(Err((msg, Error::unknown())))
+                Ok(Err((msg, Error::unknown())))
             }
         };
 

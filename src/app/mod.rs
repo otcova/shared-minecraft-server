@@ -304,10 +304,8 @@ impl App {
                 ui.separator();
                 ui.label(&*message);
                 if details.len() > 0 {
-                    ui.indent("details", |ui| {
-                        ui.small("Details:");
-                        ui.small(&*details);
-                    });
+                    ui.small("Error Details:");
+                    ui.indent("details", |ui| ui.small(&*details));
                 }
             }
         }

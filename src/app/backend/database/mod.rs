@@ -26,7 +26,7 @@ where
         user.set_scene(Scene::Error {
             title: "You need to setup your credentials".into(),
             message: message.into(),
-            details: if error == Error::unknown() {
+            details: if error.is_unknown() {
                 "".into()
             } else {
                 format!("{}", error)

@@ -170,7 +170,6 @@ impl Backend {
                     }
                 }
                 Action::OpenServer(ram) => {
-                    println!("S");
                     Self::open_server(&backend_user, ram);
                     let _ = try_pull_until_last(&action_recv);
                     action = Action::Database(database::Action::Unlock);
@@ -193,8 +192,17 @@ impl Backend {
 
     fn open_server(backend_user: &BackendUser, ram: u8) {
         match local_files::get_app_folder_path() {
-            Err(err) => backend_user.set_scene(Scene::fatal_error(&format!("{}", err))),
+            Err(err) => backend_user.fatal_error(&format!("{}", err)),
             Ok(server_path) => {
+                if let Err(error) = ddns::update() {
+                    backend_user.set_scene(Scene::Error {
+                        title: "Error".into(),
+                        message: "Could not update dns.\n Contact with a moderator.\n".into(),
+                        details: format!("{}", error),
+                    });
+                    return;
+                }
+
                 let start_server_command = format!(
                     r#"cd "{}"; java -Xmx{1}g -Xms{1}g -jar mc_server.jar nogui"#,
                     server_path.display(),

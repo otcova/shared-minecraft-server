@@ -3,6 +3,7 @@
 
 mod app;
 mod autoupdate;
+mod ddns;
 mod error;
 mod fetch;
 mod git;
