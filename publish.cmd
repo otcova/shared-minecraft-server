@@ -1,2 +1,12 @@
-@cargo post build --release
-@upx --best "releases/last/Shared Minecraft Server.exe"
+@echo off
+
+cargo post build --release
+
+:choice
+set /P c=Do you want to compress the release executable[Y/N]?
+if /I "%c%" EQU "Y" goto :compress
+if /I "%c%" EQU "N" exit
+goto :choice
+
+:compress
+upx --best "releases/last/Shared Minecraft Server.exe"
