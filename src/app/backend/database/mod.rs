@@ -1,4 +1,3 @@
-// mod git;
 pub mod local_files;
 
 use self::local_files::HOSTER_FILE_LOCAL_PATH;
