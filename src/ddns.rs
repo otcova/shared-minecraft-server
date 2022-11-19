@@ -9,7 +9,7 @@ pub fn update() -> Result<(), Error> {
 
     let mut writer = Vec::new();
     let uri = Uri::try_from("https://dynupdate.no-ip.com/nic/update?hostname=vsinf.ddns.net")?;
-    let response = Request::new(&uri)
+    Request::new(&uri)
         .header("Host", "dynupdate.no-ip.com")
         .header("Authorization", "Basic b3RnZXJjb21hczpzN2FuSGFiUThYZXVp")
         .header(

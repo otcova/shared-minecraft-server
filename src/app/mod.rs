@@ -128,7 +128,7 @@ impl eframe::App for App {
     fn on_close_event(&mut self) -> bool {
         match &mut self.scene {
             Scene::Hosting { command_sender, .. } => {
-                if let Err(err) = command_sender.send_stop() {
+                if let Err(_) = command_sender.send_stop() {
                     self.scene = Scene::Loading {
                         title: "Closing Minecraft Server".into(),
                         progress: 0.,
