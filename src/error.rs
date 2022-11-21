@@ -3,7 +3,7 @@ use std::panic::Location;
 #[derive(Debug)]
 enum InnerError {
     Unknown,
-    None(String),
+    Msg(String),
     Io(std::io::Error),
     Git(git2::Error),
     Http(http_req::error::Error),
@@ -19,7 +19,7 @@ impl Error {
     #[track_caller]
     pub fn from_str<S: Into<String>>(msg: S) -> Self {
         Self {
-            inner: InnerError::None(msg.into()),
+            inner: InnerError::Msg(msg.into()),
             location: std::panic::Location::caller(),
         }
     }
@@ -43,7 +43,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
             InnerError::Unknown => None,
-            InnerError::None(_) => None,
+            InnerError::Msg(_) => None,
             InnerError::Io(err) => Some(err),
             InnerError::Git(err) => Some(err),
             InnerError::Http(err) => Some(err),
@@ -53,7 +53,10 @@ impl std::error::Error for Error {
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}, {}", self.inner, self.location)
+        match &self.inner {
+            InnerError::Msg(msg) =>  write!(f, "{}, {}", msg, self.location),
+            _ => write!(f, "{:?}, {}", self.inner, self.location),
+        }
     }
 }
 
