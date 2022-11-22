@@ -2,7 +2,6 @@ use std::panic::Location;
 
 #[derive(Debug)]
 enum InnerError {
-    Unknown,
     Msg(String),
     Io(std::io::Error),
     Git(git2::Error),
@@ -23,26 +22,11 @@ impl Error {
             location: std::panic::Location::caller(),
         }
     }
-    #[track_caller]
-    pub fn unknown() -> Self {
-        Self {
-            inner: InnerError::Unknown,
-            location: std::panic::Location::caller(),
-        }
-    }
-
-    pub fn is_unknown(&self) -> bool {
-        match &self.inner {
-            InnerError::Unknown => true,
-            _ => false,
-        }
-    }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match &self.inner {
-            InnerError::Unknown => None,
             InnerError::Msg(_) => None,
             InnerError::Io(err) => Some(err),
             InnerError::Git(err) => Some(err),
