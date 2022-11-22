@@ -60,7 +60,7 @@ where
         let action = on_sync();
 
         let current_host = local_files::load_current_host(database.work_dir())?;
-        let user_id = user::id();
+        let user_id = user::id(git::get_username().ok());
 
         if current_host.as_ref() == Some(&user_id) {
             match action {

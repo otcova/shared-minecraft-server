@@ -218,3 +218,16 @@ impl<R: StatusReporter> Git<R> {
         &self.path
     }
 }
+
+pub fn get_username() -> Result<String, Error> {
+    if let Some(username) = Config::open_default()?.get_entry("user.name")?.value() {
+        Ok(username.into())
+    } else {
+        Err(git2::Error::new(
+            git2::ErrorCode::NotFound,
+            git2::ErrorClass::Config,
+            "Credentials are not setup properly, username not found.",
+        )
+        .into())
+    }
+}

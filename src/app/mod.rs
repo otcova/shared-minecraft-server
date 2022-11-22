@@ -184,10 +184,7 @@ impl App {
             Scene::SomeoneLocked { host_id } => {
                 ui.heading("Server Locked");
                 ui.separator();
-                match user::parse_id(&host_id, "ip") {
-                    Some(ip) => ui.label(format!("Host ip: {}", ip)),
-                    None => ui.label(format!("Host: {}", host_id)),
-                };
+                ui.label(format!("Host: {}", user::display(host_id)));
             }
             Scene::SelfLocked => {
                 ui.heading("You have the Power");
