@@ -2,13 +2,13 @@
 
 mod app;
 mod autoupdate;
-mod pull_channel;
 mod ddns;
 mod error;
 mod fetch;
 mod git;
 mod process;
 mod public_ip;
+mod pull_channel;
 
 use app::*;
 use eframe::egui;
@@ -23,9 +23,5 @@ fn main() {
     options.resizable = false;
     options.follow_system_theme = true;
 
-    eframe::run_native(
-        "Shared Server",
-        options,
-        Box::new(|cc| Box::new(App::new(cc))),
-    );
+    eframe::run_native("MC Hoster", options, Box::new(|cc| Box::new(App::new(cc))));
 }

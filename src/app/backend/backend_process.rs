@@ -2,7 +2,7 @@ use super::{
     database::{self, connect_to_database, local_files},
     BackendUser, CommandSender,
 };
-use crate::{app::Scene, pull_channel::*, ddns, process::stream_command};
+use crate::{app::Scene, ddns, process::stream_command, pull_channel::*};
 use std::{
     io::{BufRead, BufReader},
     process::Child,
