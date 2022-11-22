@@ -1,8 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![allow(dead_code, unused_variables)]
 
 mod app;
 mod autoupdate;
+mod pull_channel;
 mod ddns;
 mod error;
 mod fetch;
