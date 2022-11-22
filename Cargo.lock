@@ -1964,7 +1964,6 @@ dependencies = [
  "eframe",
  "git2",
  "http_req",
- "url",
  "winres",
 ]
 
