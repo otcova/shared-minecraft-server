@@ -21,19 +21,6 @@ where
     let local_files_path = local_files::get_app_folder_path()?;
     let database = Git::<&BackendUser>::new(user, &local_files_path, SERVER_REPO_URL)?;
 
-    if let Err((message, error)) = database.check_credentials(SERVER_REPO_URL)? {
-        user.set_scene(Scene::Error {
-            title: "You need to setup your credentials".into(),
-            message: message.into(),
-            details: if error.is_unknown() {
-                "".into()
-            } else {
-                format!("{}", error)
-            },
-        });
-        return Ok(());
-    }
-
     database.commit_all("before try_sync")?;
 
     match database.pull()? {
@@ -73,7 +60,7 @@ where
         let action = on_sync();
 
         let current_host = local_files::load_current_host(database.work_dir())?;
-        let user_id = user::id_from(&git::get_username()?, &git::get_email()?);
+        let user_id = user::id();
 
         if current_host.as_ref() == Some(&user_id) {
             match action {
@@ -84,17 +71,7 @@ where
                 }
             }
         } else if let Some(host_id) = current_host {
-            if let Some(host) = user::parse_id(&host_id) {
-                user.set_scene(Scene::SomeoneLocked {
-                    host_name: host.username.into(),
-                    host_ip: host.ip.into(),
-                });
-            } else {
-                user.set_scene(Scene::SomeoneLocked {
-                    host_name: host_id.into(),
-                    host_ip: "".into(),
-                });
-            }
+            user.set_scene(Scene::SomeoneLocked { host_id });
         } else {
             match action {
                 Action::Unlock => user.set_scene(Scene::Unlocked),

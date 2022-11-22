@@ -11,8 +11,7 @@ use std::sync::{Arc, Mutex};
 pub enum Scene {
     Unlocked,
     SomeoneLocked {
-        host_name: String,
-        host_ip: String,
+        host_id: String,
     },
     SelfLocked,
     Hosting {
@@ -118,6 +117,7 @@ impl eframe::App for App {
                 let size = match &self.scene {
                     Scene::Hosting { .. } => vec2(700., auto_height),
                     Scene::RepoConflicts { .. } => vec2(740., auto_height),
+                    Scene::Error { .. } => vec2(400., auto_height),
                     _ => vec2(300., auto_height),
                 };
 
@@ -172,14 +172,6 @@ impl App {
         ctx.set_style(style);
     }
 
-    fn set_font_size(ui: &mut egui::Ui, text_style: TextStyle, size: f32) {
-        ui.style_mut()
-            .text_styles
-            .iter_mut()
-            .find(|(style, _)| **style == text_style)
-            .map(|(_, font)| font.size = size);
-    }
-
     fn draw_scene(&mut self, ui: &mut egui::Ui, win_frame: &mut eframe::Frame) {
         match &mut self.scene {
             Scene::Unlocked => {
@@ -189,15 +181,13 @@ impl App {
                     self.backend.lock_server();
                 }
             }
-            Scene::SomeoneLocked { host_name, host_ip } => {
+            Scene::SomeoneLocked { host_id } => {
                 ui.heading("Server Locked");
                 ui.separator();
-                if host_ip.len() == 0 {
-                    ui.label(format!("Host: {}", host_name));
-                } else {
-                    ui.label(format!("Host name: {}", host_name));
-                    ui.label(format!("Host ip: {}", host_ip));
-                }
+                match user::parse_id(&host_id, "ip") {
+                    Some(ip) => ui.label(format!("Host ip: {}", ip)),
+                    None => ui.label(format!("Host: {}", host_id)),
+                };
             }
             Scene::SelfLocked => {
                 ui.heading("You have the Power");
@@ -219,22 +209,7 @@ impl App {
                 command,
                 command_sender,
             } => {
-                ui.horizontal_top(|ui| {
-                    ui.heading("You are hosting on:");
-
-                    ui.vertical(|ui| {
-                        let pub_ip = public_ip::get().expect("Could not get public ip");
-                        let font_size = 22.;
-                        Self::set_font_size(ui, TextStyle::Body, font_size);
-                        ui.spacing_mut().item_spacing.y = 0.;
-                        ui.allocate_space(Vec2::new(0., 25. - font_size));
-
-                        let link = ui.link(&pub_ip).on_hover_text("Copy to clipboard");
-                        if link.clicked() {
-                            ui.output().copied_text = pub_ip;
-                        }
-                    });
-                });
+                ui.heading("You are hosting");
 
                 ui.separator();
 

@@ -1,28 +1,20 @@
 use crate::public_ip;
 
-const SEPARATOR: &str = "_;_";
-
-pub fn id_from(username: &str, email: &str) -> String {
-    let username = username.replace(SEPARATOR, ":O");
-    let email = email.replace(SEPARATOR, ":O");
-    public_ip::get().expect("Could not get public ip address")
-        + SEPARATOR
-        + &username
-        + SEPARATOR
-        + &email
+pub fn id() -> String {
+    format!(
+        "ip={}",
+        public_ip::get().expect("Could not get public ip address")
+    )
 }
 
-pub struct ParsedUserId<'a> {
-    pub ip: &'a str,
-    pub username: &'a str,
-    pub email: &'a str,
+pub fn parse_id<'a, S: AsRef<str>, T: AsRef<str>>(user_id: &'a S, key: T) -> Option<&'a str> {
+    for line in user_id.as_ref().split("\n") {
+        if let Some((line_key, value)) = line.split_once("=") {
+            if line_key == key.as_ref() {
+                return Some(value);
+            }
+        }
+    }
+    None
 }
 
-pub fn parse_id(user_id: &String) -> Option<ParsedUserId> {
-    let mut pieces = user_id.split(SEPARATOR);
-    Some(ParsedUserId {
-        ip: pieces.next()?,
-        username: pieces.next()?,
-        email: pieces.next()?,
-    })
-}
