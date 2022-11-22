@@ -7,8 +7,6 @@ pub use status_reporter::StatusReporter;
 use status_reporter::*;
 use std::path::{Path, PathBuf};
 
-use self::credentials::create_credentials;
-
 pub struct Git<R: StatusReporter> {
     path: PathBuf,
     repo: Repository,
@@ -74,40 +72,6 @@ impl<R: StatusReporter> Git<R> {
         })
     }
 
-    pub fn check_credentials(
-        &self,
-        origin_url: &str,
-    ) -> Result<Result<(), (&'static str, Error)>, Error> {
-        // try load config
-        let config_res = Config::open_default();
-        let Ok(config) = config_res else {
-            let msg = "Default configuration not found.";
-            return if let Err(err) = config_res {
-                Ok(Err((msg, err.into())))
-            } else {
-                Ok(Err((msg, Error::unknown())))
-            }
-        };
-
-        // try to do a signature
-        if let Err(err) = self.repo.signature() {
-            if config.get_entry("user.name")?.value().is_none() {
-                return Ok(Err(("Missing username.", err.into())));
-            }
-            if config.get_entry("user.email")?.value().is_none() {
-                return Ok(Err(("Missing user email.", err.into())));
-            }
-            return Ok(Err(("Could not create signature.", err.into())));
-        }
-
-        // try to setup a credential
-        if let Err(err) = create_credentials(&config, origin_url, None) {
-            return Ok(Err(("Could not create credentials", err.into())));
-        }
-
-        Ok(Ok(()))
-    }
-
     /// If there aren't changes, it will not commit.
     pub fn commit_all(&self, message: &str) -> Result<(), Error> {
         let mut index = self.repo.index()?;
@@ -116,7 +80,7 @@ impl<R: StatusReporter> Git<R> {
         index.add_all(
             ["*"].iter(),
             IndexAddOption::FORCE,
-            Some(&mut |path: &Path, _matched_spec: &[u8]| -> i32 {
+            Some(&mut |_path: &Path, _matched_spec: &[u8]| -> i32 {
                 found_changes = true;
                 self.reporter.status_change("Listing changes", Some(0.));
                 0
@@ -252,31 +216,5 @@ impl<R: StatusReporter> Git<R> {
 
     pub fn work_dir(&self) -> &PathBuf {
         &self.path
-    }
-}
-
-pub fn get_username() -> Result<String, Error> {
-    if let Some(username) = Config::open_default()?.get_entry("user.name")?.value() {
-        Ok(username.into())
-    } else {
-        Err(git2::Error::new(
-            git2::ErrorCode::NotFound,
-            git2::ErrorClass::Config,
-            "Credentials are not setup correctly, username not found.",
-        )
-        .into())
-    }
-}
-
-pub fn get_email() -> Result<String, Error> {
-    if let Some(email) = Config::open_default()?.get_entry("user.email")?.value() {
-        Ok(email.into())
-    } else {
-        Err(git2::Error::new(
-            git2::ErrorCode::NotFound,
-            git2::ErrorClass::Config,
-            "Credentials are not setup correctly, email not found.",
-        )
-        .into())
     }
 }

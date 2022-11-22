@@ -58,8 +58,7 @@ impl<R: StatusReporter> GitStatusReporter<R> {
     pub fn new_push_options(&self) -> Result<PushOptions, Error> {
         let mut cbs = self.new_remote_callbacks();
 
-        let config = git2::Config::open_default()?;
-        cbs.credentials(move |url, username, _| create_credentials(&config, url, username));
+        cbs.credentials(|_, _, _| create_credentials());
 
         let mut push_options = PushOptions::new();
         push_options.remote_callbacks(cbs);
