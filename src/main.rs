@@ -23,5 +23,5 @@ fn main() {
     options.resizable = false;
     options.follow_system_theme = true;
 
-    eframe::run_native("Temp MC Hoster", options, Box::new(|cc| Box::new(App::new(cc))));
+    eframe::run_native("MC Hoster", options, Box::new(|cc| Box::new(App::new(cc))));
 }

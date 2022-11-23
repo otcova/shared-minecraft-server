@@ -27,7 +27,7 @@ pub fn update() {
 fn remove_old_version() -> io::Result<()> {
     let mut old_exe_path = current_exe()?;
     old_exe_path.set_file_name(format!(".shared-minecraft-server.old"));
-    remove_file(&old_exe_path).unwrap();
+    remove_file(&old_exe_path)?;
     Ok(())
 }
 
