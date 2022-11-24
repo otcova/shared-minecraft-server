@@ -96,7 +96,7 @@ impl<R: StatusReporter> Git<R> {
     }
 
     fn commit(&self, msg: &str, tree: &Tree, parents: &[&Commit]) -> Result<(), Error> {
-        let s = self.repo.signature()?;
+        let s = Signature::now("Octova-Handle", "octova.handle@gmail.com")?;
         self.reporter.status_change("Packing changes", Some(0.));
         self.repo.commit(Some("HEAD"), &s, &s, msg, tree, parents)?;
         Ok(())
