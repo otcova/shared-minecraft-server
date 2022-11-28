@@ -66,9 +66,10 @@ impl App {
     }
 
     /// return true if the window has resized
-    fn resize_window(&mut self, frame: &mut eframe::Frame, new_size: Vec2) {
+    fn resize_window(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame, new_size: Vec2) {
         if frame.info().window_info.size != new_size {
             frame.set_window_size(new_size);
+            ctx.request_repaint();
         }
     }
 
@@ -121,7 +122,7 @@ impl eframe::App for App {
                     _ => vec2(300., auto_height),
                 };
 
-                self.resize_window(win_frame, size);
+                self.resize_window(ctx, win_frame, size);
             });
     }
 
@@ -145,16 +146,24 @@ impl eframe::App for App {
 
 impl App {
     fn setup_fonts(ctx: &egui::Context) {
-        use FontFamily::Proportional;
         let mut style = (*ctx.style()).clone();
 
         style.spacing.text_edit_width = f32::INFINITY;
         style.text_styles = [
-            (TextStyle::Heading, FontId::new(25., Proportional)),
-            (TextStyle::Body, FontId::new(17., Proportional)),
-            (TextStyle::Monospace, FontId::new(16., Proportional)),
-            (TextStyle::Button, FontId::new(20., Proportional)),
-            (TextStyle::Small, FontId::new(15., Proportional)),
+            (
+                TextStyle::Heading,
+                FontId::new(25., FontFamily::Proportional),
+            ),
+            (TextStyle::Body, FontId::new(17., FontFamily::Proportional)),
+            (
+                TextStyle::Monospace,
+                FontId::new(16., FontFamily::Monospace),
+            ),
+            (
+                TextStyle::Button,
+                FontId::new(20., FontFamily::Proportional),
+            ),
+            (TextStyle::Small, FontId::new(15., FontFamily::Proportional)),
         ]
         .into();
 
@@ -224,9 +233,8 @@ impl App {
                         .stick_to_bottom(true)
                         .max_height(300.)
                         .show(ui, |ui| {
-                            ui.label(&*text);
+                            ui.monospace(RichText::new(&*text));
                         });
-
                     let input = ui.text_edit_singleline(command);
                     if input.lost_focus() && ui.input().key_down(Key::Enter) {
                         let _ = command_sender.send(command);

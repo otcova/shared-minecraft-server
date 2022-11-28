@@ -138,16 +138,18 @@ impl BackendProcess {
         let stdout_reader = BufReader::new(stdout);
 
         for line in stdout_reader.lines() {
-            let Ok(mut out) = server_output.lock() else {
-                self.backend_user.fatal_error("Could not lock server output.");
-                return;
-            };
-            match line {
-                Ok(line) => *out += &format!("{}\n", line),
-                Err(line) => *out += &format!("[ERROR] {}", line),
-            }
+            if let Ok(line) = line {
+                if let Some(line) = filter_chat(&line) {
+                    let Ok(mut out) = server_output.lock() else {
+                        self.backend_user.fatal_error("Could not lock server output.");
+                        return;
+                    };
 
-            self.backend_user.request_repaint();
+                    *out += &format!("{}\n", line);
+
+                    self.backend_user.request_repaint();
+                }
+            }
         }
 
         let stderr_reader = BufReader::new(stderr);
@@ -172,3 +174,40 @@ impl BackendProcess {
         };
     }
 }
+
+fn filter_chat(line: &str) -> Option<String> {
+    let line = line.trim();
+    if line.len() < 29 {
+        return None;
+    }
+    if &line[0..1] != "[" {
+        return None;
+    }
+    let Ok(_hour) = line[1..3].parse::<u8>() else {
+        return None;
+    };
+    let Ok(_min) = line[4..6].parse::<u8>() else {
+        return None;
+    };
+    let Ok(_sec) = line[7..9].parse::<u8>() else {
+        return None;
+    };
+
+    if &line[9..15] != " INFO]" {
+        return None;
+    }
+
+    if &line[15..30] == ": [Not Secure] " {
+        Some(format!("{}] {}", &line[0..9], &line[30..]))
+    } else if line.ends_with(" joined the game") {
+        Some(format!("{}] {}", &line[0..9], &line[17..]))
+    } else if line.ends_with(" left the game") {
+        Some(format!("{}] {}", &line[0..9], &line[17..]))
+    } else {
+        println!("{}", line);
+        None
+    }
+}
+
+// [11:57:35 INFO]: [Not Secure] [Server] Hello
+// [12:04:19 INFO]: [Not Secure] <Octova> Hello
