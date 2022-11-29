@@ -15,7 +15,9 @@ pub enum Scene {
     },
     SelfLocked,
     Hosting {
-        server_output: Arc<Mutex<String>>,
+        chat: Arc<Mutex<String>>,
+        players: Arc<Mutex<Vec<String>>>,
+        tps: Arc<Mutex<f32>>,
         command: String,
         command_sender: CommandSender,
     },
@@ -52,7 +54,7 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext) -> Self {
-        Self::setup_fonts(&cc.egui_ctx);
+        Self::setup_style(&cc.egui_ctx);
 
         Self {
             scene: Scene::Loading {
@@ -116,7 +118,7 @@ impl eframe::App for App {
                 let auto_height = frame.response.rect.height() + margin * 2.;
 
                 let size = match &self.scene {
-                    Scene::Hosting { .. } => vec2(700., auto_height),
+                    Scene::Hosting { .. } => vec2(600., auto_height),
                     Scene::RepoConflicts { .. } => vec2(740., auto_height),
                     Scene::Error { .. } => vec2(400., auto_height),
                     _ => vec2(300., auto_height),
@@ -145,7 +147,7 @@ impl eframe::App for App {
 }
 
 impl App {
-    fn setup_fonts(ctx: &egui::Context) {
+    fn setup_style(ctx: &egui::Context) {
         let mut style = (*ctx.style()).clone();
 
         style.spacing.text_edit_width = f32::INFINITY;
@@ -157,7 +159,7 @@ impl App {
             (TextStyle::Body, FontId::new(17., FontFamily::Proportional)),
             (
                 TextStyle::Monospace,
-                FontId::new(16., FontFamily::Monospace),
+                FontId::new(15., FontFamily::Monospace),
             ),
             (
                 TextStyle::Button,
@@ -168,7 +170,7 @@ impl App {
         .into();
 
         style.spacing.button_padding = vec2(10., 10.);
-        style.spacing.item_spacing = vec2(10., 10.);
+        style.spacing.item_spacing = vec2(12., 12.);
 
         if style.visuals.dark_mode {
             style.visuals.override_text_color = Some(Color32::from_rgb(220, 220, 220));
@@ -211,7 +213,9 @@ impl App {
                 }
             }
             Scene::Hosting {
-                server_output,
+                chat,
+                players,
+                tps,
                 command,
                 command_sender,
             } => {
@@ -219,28 +223,73 @@ impl App {
 
                 ui.separator();
 
-                let Ok(text) = server_output.lock() else {
+                let tps = {
+                    let Ok(tps) = tps.lock() else {
+                        self.scene = Scene::fatal_error("Backend panicked while holding a lock.");
+                        ui.ctx().request_repaint();
+                        return;
+                    };
+                    *tps
+                };
+
+                let Ok(chat) = chat.lock() else {
                     self.scene = Scene::fatal_error("Backend panicked while holding a lock.");
                     ui.ctx().request_repaint();
                     return;
                 };
 
-                Frame::default().show(ui, |ui| {
-                    ui.spacing_mut().item_spacing = vec2(0., 0.);
+                ui.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(
+                        vec2(400., 300.),
+                        Layout::top_down(Align::LEFT),
+                        |ui| {
+                            ui.spacing_mut().item_spacing = vec2(4., 4.);
 
-                    ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(true)
-                        .max_height(300.)
-                        .show(ui, |ui| {
-                            ui.monospace(RichText::new(&*text));
-                        });
-                    let input = ui.text_edit_singleline(command);
-                    if input.lost_focus() && ui.input().key_down(Key::Enter) {
-                        let _ = command_sender.send(command);
-                        *command = "".into();
-                        input.request_focus();
-                    }
+                            ScrollArea::vertical()
+                                .auto_shrink([false, false])
+                                .stick_to_bottom(true)
+                                .show(ui, |ui| {
+                                    ui.monospace(RichText::new(&*chat));
+                                });
+                            let input = TextEdit::singleline(command)
+                                .font(TextStyle::Monospace)
+                                .show(ui);
+                            if input.response.lost_focus() && ui.input().key_down(Key::Enter) {
+                                let _ = command_sender.send(command);
+                                *command = "".into();
+                                input.response.request_focus();
+                            }
+                        },
+                    );
+                    ui.allocate_ui_with_layout(
+                        vec2(151., 300.),
+                        Layout::top_down(Align::LEFT),
+                        |ui| {
+                            let _ = command_sender.request_tps();
+                            ui.label(format!("Performance: {}%", (tps / 0.2).round()));
+
+                            let Ok(players) = players.lock() else {
+                            return;
+                        };
+                            ui.separator();
+                            ui.label("Players:");
+                            ui.indent("players list indent", |ui| {
+                                ScrollArea::vertical()
+                                    .id_source("players scroll area")
+                                    .auto_shrink([false, true])
+                                    .stick_to_bottom(true)
+                                    .max_height(290.)
+                                    .show(ui, |ui| {
+                                        ui.spacing_mut().item_spacing = vec2(8., 8.);
+                                        for _ in 0..30 {
+                                            for player in &*players {
+                                                ui.monospace(RichText::new(player));
+                                            }
+                                        }
+                                    });
+                            });
+                        },
+                    );
                 });
 
                 if ui.button("Close Server").clicked() {

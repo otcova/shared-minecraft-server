@@ -43,8 +43,9 @@ impl BackendProcess {
     }
 
     fn run_backend_loop(mut self) {
+        let mut cooldown = Duration::ZERO;
         loop {
-            match self.pull_action_channel(Duration::from_secs(5)) {
+            match self.pull_action_channel(cooldown) {
                 Action::Database(_) => self.connect_to_database(),
                 Action::OpenServer(ram) => {
                     self.open_server(ram);
@@ -52,6 +53,7 @@ impl BackendProcess {
                     self.action = Action::Database(database::Action::Unlock);
                 }
             }
+            cooldown = Duration::from_secs(5);
         }
     }
 
@@ -127,10 +129,14 @@ impl BackendProcess {
             return;
         };
 
-        let server_output = Arc::new(Mutex::new("".into()));
+        let ui_chat = Arc::new(Mutex::new("".into()));
+        let ui_players = Arc::new(Mutex::new(vec![]));
+        let ui_tps = Arc::new(Mutex::new(20.));
 
         self.backend_user.set_scene(Scene::Hosting {
-            server_output: server_output.clone(),
+            chat: ui_chat.clone(),
+            players: ui_players.clone(),
+            tps: ui_tps.clone(),
             command: "".into(),
             command_sender: CommandSender::new(stdin),
         });
@@ -139,15 +145,60 @@ impl BackendProcess {
 
         for line in stdout_reader.lines() {
             if let Ok(line) = line {
-                if let Some(line) = filter_chat(&line) {
-                    let Ok(mut out) = server_output.lock() else {
-                        self.backend_user.fatal_error("Could not lock server output.");
-                        return;
-                    };
+                match parse_console_log(&line) {
+                    ConsoleLog::Chat { msg } => {
+                        let Ok(mut out) = ui_chat.lock() else {
+                            self.backend_user.fatal_error("Could not lock server output.");
+                            return;
+                        };
 
-                    *out += &format!("{}\n", line);
+                        *out += &msg;
 
-                    self.backend_user.request_repaint();
+                        self.backend_user.request_repaint();
+                    }
+                    ConsoleLog::Joined { player_name, msg } => {
+                        let Ok(mut out) = ui_chat.lock() else {
+                            self.backend_user.fatal_error("Could not lock server output.");
+                            return;
+                        };
+
+                        *out += &msg;
+
+                        if let Ok(mut players_list) = ui_players.lock() {
+                            players_list.push(player_name);
+                        }
+
+                        self.backend_user.request_repaint();
+                    }
+                    ConsoleLog::Left { player_name, msg } => {
+                        let Ok(mut out) = ui_chat.lock() else {
+                            self.backend_user.fatal_error("Could not lock server output.");
+                            return;
+                        };
+
+                        *out += &msg;
+
+                        if let Ok(mut players_list) = ui_players.lock() {
+                            if let Some(player_index) =
+                                players_list.iter().position(|name| *name == player_name)
+                            {
+                                players_list.remove(player_index);
+                            }
+                        }
+
+                        self.backend_user.request_repaint();
+                    }
+                    ConsoleLog::Tps { tps } => {
+                        let Ok(mut ui_tps) = ui_tps.lock() else {
+                            self.backend_user.fatal_error("Could not lock server output.");
+                            return;
+                        };
+
+                        *ui_tps = tps;
+
+                        self.backend_user.request_repaint();
+                    }
+                    ConsoleLog::Other => {}
                 }
             }
         }
@@ -175,39 +226,59 @@ impl BackendProcess {
     }
 }
 
-fn filter_chat(line: &str) -> Option<String> {
+enum ConsoleLog {
+    Chat { msg: String },
+    Joined { player_name: String, msg: String },
+    Left { player_name: String, msg: String },
+    Tps { tps: f32 },
+    Other,
+}
+
+fn parse_console_log(line: &str) -> ConsoleLog {
     let line = line.trim();
-    if line.len() < 29 {
-        return None;
+    if line.len() < 31 {
+        return ConsoleLog::Other;
     }
     if &line[0..1] != "[" {
-        return None;
+        return ConsoleLog::Other;
     }
     let Ok(_hour) = line[1..3].parse::<u8>() else {
-        return None;
+        return ConsoleLog::Other;
     };
     let Ok(_min) = line[4..6].parse::<u8>() else {
-        return None;
+        return ConsoleLog::Other;
     };
     let Ok(_sec) = line[7..9].parse::<u8>() else {
-        return None;
+        return ConsoleLog::Other;
     };
 
     if &line[9..15] != " INFO]" {
-        return None;
+        return ConsoleLog::Other;
     }
 
-    if &line[15..30] == ": [Not Secure] " {
-        Some(format!("{}] {}", &line[0..9], &line[30..]))
+    if line.len() > 50 && &line[15..44] == ": TPS from last 1m, 5m, 15m: " {
+        match line[44..].split_once(", ") {
+            Some((tps_str, _)) => match tps_str.parse::<f32>() {
+                Ok(tps) => ConsoleLog::Tps { tps },
+                Err(_) => ConsoleLog::Other,
+            },
+            None => ConsoleLog::Other,
+        }
+    } else if &line[15..30] == ": [Not Secure] " {
+        ConsoleLog::Chat {
+            msg: format!("{}] {}\n", &line[0..9], &line[30..]),
+        }
     } else if line.ends_with(" joined the game") {
-        Some(format!("{}] {}", &line[0..9], &line[17..]))
+        ConsoleLog::Joined {
+            player_name: line[17..line.len() - 16].to_string(),
+            msg: format!("{}] {}\n", &line[0..9], &line[17..]),
+        }
     } else if line.ends_with(" left the game") {
-        Some(format!("{}] {}", &line[0..9], &line[17..]))
+        ConsoleLog::Left {
+            player_name: line[17..line.len() - 14].to_string(),
+            msg: format!("{}] {}\n", &line[0..9], &line[17..]),
+        }
     } else {
-        println!("{}", line);
-        None
+        ConsoleLog::Other
     }
 }
-
-// [11:57:35 INFO]: [Not Secure] [Server] Hello
-// [12:04:19 INFO]: [Not Secure] <Octova> Hello
