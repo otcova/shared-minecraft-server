@@ -281,10 +281,8 @@ impl App {
                                     .max_height(290.)
                                     .show(ui, |ui| {
                                         ui.spacing_mut().item_spacing = vec2(8., 8.);
-                                        for _ in 0..30 {
-                                            for player in &*players {
-                                                ui.monospace(RichText::new(player));
-                                            }
+                                        for player in &*players {
+                                            ui.monospace(RichText::new(player));
                                         }
                                     });
                             });
