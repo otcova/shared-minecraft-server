@@ -8,6 +8,7 @@ mod fetch;
 mod git;
 mod process;
 mod public_ip;
+mod verify_signature;
 mod pull_channel;
 
 use app::*;

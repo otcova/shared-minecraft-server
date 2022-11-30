@@ -2,7 +2,9 @@ use super::{
     database::{self, connect_to_database, local_files},
     BackendUser, CommandSender,
 };
-use crate::{app::Scene, ddns, process::stream_command, pull_channel::*};
+use crate::{
+    app::Scene, ddns, process::stream_command, pull_channel::*, verify_signature::verify_signature,
+};
 use std::{
     io::{BufRead, BufReader},
     process::Child,
@@ -90,6 +92,18 @@ impl BackendProcess {
         match local_files::get_app_folder_path() {
             Err(err) => self.backend_user.fatal_error(&format!("{}", err)),
             Ok(server_path) => {
+                if !verify_signature("mc_server.jar") {
+                    self.backend_user.set_scene(Scene::Error {
+                        title: "Error".into(),
+                        message: "The signature is not valid!\n\
+                            There is a signature to prevent other hosters from injecting viruses in the server.\
+                            If the signature doesn't validate, it means that the files have been modified without authorization.\n\
+                            Contact with a moderator!".into(),
+                        details: "".into(),
+                    });
+                    return;
+                }
+
                 if let Err(error) = ddns::update() {
                     self.backend_user.set_scene(Scene::Error {
                         title: "Error".into(),
