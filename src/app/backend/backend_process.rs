@@ -92,7 +92,7 @@ impl BackendProcess {
         match local_files::get_app_folder_path() {
             Err(err) => self.backend_user.fatal_error(&format!("{}", err)),
             Ok(server_path) => {
-                if !verify_signature("mc_server.jar") {
+                if !verify_signature(server_path.join("mc_server.jar")) {
                     self.backend_user.set_scene(Scene::Error {
                         title: "Error".into(),
                         message: "The signature is not valid!\n\
