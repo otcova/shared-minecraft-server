@@ -102,10 +102,31 @@ impl<R: StatusReporter> Git<R> {
         Ok(())
     }
 
+    // squashes changes into the last commit
+    pub fn commit_all_squashed(&self, message: &str) -> Result<(), Error> {
+        let mut commit = self.repo.head()?.peel_to_commit()?;
+        if commit.parent_count() > 0 {
+            commit = commit.parent(0)?;
+        }
+
+        let mut checkout = self.reporter.new_checkout();
+        self.repo
+            .reset(commit.as_object(), ResetType::Mixed, Some(&mut checkout))?;
+
+        self.commit_all(message)
+    }
+
     pub fn push(&self) -> Result<(), Error> {
         let mut push_opts = self.reporter.new_push_options()?;
         let mut remote = self.repo.find_remote("origin")?;
         remote.push(&["refs/heads/main"], Some(&mut push_opts))?;
+        Ok(())
+    }
+
+    pub fn push_force(&self) -> Result<(), Error> {
+        let mut push_opts = self.reporter.new_push_options()?;
+        let mut remote = self.repo.find_remote("origin")?;
+        remote.push(&["+refs/heads/main"], Some(&mut push_opts))?;
         Ok(())
     }
 
@@ -130,7 +151,13 @@ impl<R: StatusReporter> Git<R> {
         let fetch_head = self.repo.find_reference("FETCH_HEAD")?;
         let fetch_commit = self.repo.reference_to_annotated_commit(&fetch_head)?;
 
-        self.merge("main", fetch_commit)
+        let merge_status = self.merge("main", fetch_commit)?;
+
+        if fetch_head.peel_to_commit()?.id() == self.repo.head()?.peel_to_commit()?.id() {
+            Ok(MergeStatus::Conflicts(Vec::new()))
+        } else {
+            Ok(merge_status)
+        }
     }
 
     fn merge(
