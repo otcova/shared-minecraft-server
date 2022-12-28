@@ -25,7 +25,8 @@ where
 
     match database.pull()? {
         MergeStatus::Conflicts(conflicts) => {
-            if conflicts.len() == 1 && conflicts[0] == HOSTER_FILE_LOCAL_PATH {
+            if conflicts.len() == 1 && conflicts[0] == HOSTER_FILE_LOCAL_PATH
+            {
                 database.reset_hard_to_origin()?;
                 try_sync_with_origin(user, on_sync)
             } else {

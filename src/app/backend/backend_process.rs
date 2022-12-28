@@ -3,7 +3,7 @@ use super::{
     BackendUser, CommandSender,
 };
 use crate::{
-    app::Scene, ddns, process::stream_command, pull_channel::*, verify_signature::verify_signature,
+    app::Scene, ddns, process::{stream_command, self}, pull_channel::*, verify_signature::verify_signature,
 };
 use std::{
     io::{BufRead, BufReader},
@@ -23,25 +23,51 @@ pub enum Action {
 }
 
 pub struct BackendProcess {
-    backend_user: BackendUser,
+    user: BackendUser,
     action_recv: Receiver<Action>,
     action: Action,
 }
 
 impl BackendProcess {
-    pub fn start(backend_user: BackendUser) -> Sender<Action> {
+    pub fn start_thread(backend_user: BackendUser) -> Sender<Action> {
         let (action_sender, action_recv) = channel();
 
         thread::spawn(move || {
-            Self {
-                backend_user,
-                action_recv,
-                action: Action::Database(database::Action::Unlock),
+            if let Ok(backend) = Self::init(backend_user, action_recv) {
+                backend.run_backend_loop();
             }
-            .run_backend_loop();
         });
 
         action_sender
+    }
+
+    fn init(user: BackendUser, action_recv: Receiver<Action>) -> Result<BackendProcess, ()> {
+        // Check Java installation
+        let Ok(java_version_out) = process::run_command("java --version") else {
+            user.fatal_error("Could not run 'java --version'");
+            return Err(());
+        };
+        
+        let Ok(java_version) = java_version_out else {
+            user.fatal_error("Java 17 (or greater) is required");
+            return Err(());
+        };
+        
+        if java_version.as_str() < "java 17" {
+            user.fatal_error("Java 17 (or greater) is required");
+            return Err(());
+        }
+        println!("{}", java_version);
+        
+        // TODO: Check non commited changes
+        
+        
+        let backend = Self {
+            user,
+            action_recv,
+            action: Action::Database(database::Action::Unlock),
+        };
+        Ok(backend)
     }
 
     fn run_backend_loop(mut self) {
@@ -64,8 +90,8 @@ impl BackendProcess {
             Action::Database(action) => action,
             Action::OpenServer(_) => database::Action::Lock,
         };
-        if let Err(err) = connect_to_database(&self.backend_user, || action.clone()) {
-            self.backend_user
+        if let Err(err) = connect_to_database(&self.user, || action.clone()) {
+            self.user
                 .set_scene(Scene::fatal_error(&format!("{}", err)));
         }
     }
@@ -81,7 +107,7 @@ impl BackendProcess {
             Received::Empty => {}
             Received::ChannelClosed => {
                 self.action = Action::Database(database::Action::Unlock);
-                self.backend_user
+                self.user
                     .fatal_error("Backend action channel has closed.");
             }
         }
@@ -90,10 +116,10 @@ impl BackendProcess {
 
     fn open_server(&self, ram: u8) {
         match local_files::get_app_folder_path() {
-            Err(err) => self.backend_user.fatal_error(&format!("{}", err)),
+            Err(err) => self.user.fatal_error(&format!("{}", err)),
             Ok(server_path) => {
                 if !verify_signature(server_path.join("mc_server.jar")) {
-                    self.backend_user.set_scene(Scene::Error {
+                    self.user.set_scene(Scene::Error {
                         title: "Error".into(),
                         message: "The signature is not valid!\n\
                             There is a signature to prevent other hosters from injecting viruses in the server.\
@@ -105,7 +131,7 @@ impl BackendProcess {
                 }
 
                 if let Err(error) = ddns::update() {
-                    self.backend_user.set_scene(Scene::Error {
+                    self.user.set_scene(Scene::Error {
                         title: "Error".into(),
                         message: "Could not update dns.\nContact with a moderator.\n".into(),
                         details: format!("{}", error),
@@ -121,7 +147,7 @@ impl BackendProcess {
 
                 match stream_command("powershell", ["-c", &start_server_command]) {
                     Ok(process) => self.run_server(process),
-                    Err(err) => self.backend_user.fatal_error(&format!("{}", err)),
+                    Err(err) => self.user.fatal_error(&format!("{}", err)),
                 }
             }
         }
@@ -129,17 +155,17 @@ impl BackendProcess {
 
     fn run_server(&self, mut process: Child) {
         let Some(stdout) = process.stdout.take() else {
-			self.backend_user.fatal_error("Could not get stdout from the Minecraft Server process.");
+			self.user.fatal_error("Could not get stdout from the Minecraft Server process.");
 			return;
 		};
 
         let Some(stderr) = process.stderr.take() else {
-            self.backend_user.fatal_error("Could not get stderr from the Minecraft Server process.");
+            self.user.fatal_error("Could not get stderr from the Minecraft Server process.");
             return;
         };
 
         let Some(stdin) = process.stdin.take() else {
-            self.backend_user.fatal_error("Could not get stdin from the Minecraft Server process.");
+            self.user.fatal_error("Could not get stdin from the Minecraft Server process.");
             return;
         };
 
@@ -147,7 +173,7 @@ impl BackendProcess {
         let ui_players = Arc::new(Mutex::new(vec![]));
         let ui_tps = Arc::new(Mutex::new(20.));
 
-        self.backend_user.set_scene(Scene::Hosting {
+        self.user.set_scene(Scene::Hosting {
             chat: ui_chat.clone(),
             players: ui_players.clone(),
             tps: ui_tps.clone(),
@@ -162,17 +188,17 @@ impl BackendProcess {
                 match parse_console_log(&line) {
                     ConsoleLog::Chat { msg } => {
                         let Ok(mut out) = ui_chat.lock() else {
-                            self.backend_user.fatal_error("Could not lock server output.");
+                            self.user.fatal_error("Could not lock server output.");
                             return;
                         };
 
                         *out += &msg;
 
-                        self.backend_user.request_repaint();
+                        self.user.request_repaint();
                     }
                     ConsoleLog::Joined { player_name, msg } => {
                         let Ok(mut out) = ui_chat.lock() else {
-                            self.backend_user.fatal_error("Could not lock server output.");
+                            self.user.fatal_error("Could not lock server output.");
                             return;
                         };
 
@@ -182,11 +208,11 @@ impl BackendProcess {
                             players_list.push(player_name);
                         }
 
-                        self.backend_user.request_repaint();
+                        self.user.request_repaint();
                     }
                     ConsoleLog::Left { player_name, msg } => {
                         let Ok(mut out) = ui_chat.lock() else {
-                            self.backend_user.fatal_error("Could not lock server output.");
+                            self.user.fatal_error("Could not lock server output.");
                             return;
                         };
 
@@ -200,17 +226,17 @@ impl BackendProcess {
                             }
                         }
 
-                        self.backend_user.request_repaint();
+                        self.user.request_repaint();
                     }
                     ConsoleLog::Tps { tps } => {
                         let Ok(mut ui_tps) = ui_tps.lock() else {
-                            self.backend_user.fatal_error("Could not lock server output.");
+                            self.user.fatal_error("Could not lock server output.");
                             return;
                         };
 
                         *ui_tps = tps;
 
-                        self.backend_user.request_repaint();
+                        self.user.request_repaint();
                     }
                     ConsoleLog::Other => {}
                 }
@@ -224,13 +250,13 @@ impl BackendProcess {
         }
 
         match process.wait() {
-            Err(err) => self.backend_user.fatal_error(&format!(
+            Err(err) => self.user.fatal_error(&format!(
                 "Could not launch successfuly the Minecraft Server because of: {:?}",
                 err
             )),
             Ok(status) => {
                 if !status.success() {
-                    self.backend_user.fatal_error(&format!(
+                    self.user.fatal_error(&format!(
                         "Minecraft Server exit with error code: {:?}",
                         status
                     ));

@@ -53,7 +53,7 @@ impl Backend {
             egui_ctx: egui_ctx.clone(),
         };
 
-        let action_sender = BackendProcess::start(backend_user);
+        let action_sender = BackendProcess::start_thread(backend_user);
 
         Self {
             scene_recv,

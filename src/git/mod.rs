@@ -151,13 +151,7 @@ impl<R: StatusReporter> Git<R> {
         let fetch_head = self.repo.find_reference("FETCH_HEAD")?;
         let fetch_commit = self.repo.reference_to_annotated_commit(&fetch_head)?;
 
-        let merge_status = self.merge("main", fetch_commit)?;
-
-        if fetch_head.peel_to_commit()?.id() == self.repo.head()?.peel_to_commit()?.id() {
-            Ok(MergeStatus::Conflicts(Vec::new()))
-        } else {
-            Ok(merge_status)
-        }
+        self.merge("main", fetch_commit)
     }
 
     fn merge(
