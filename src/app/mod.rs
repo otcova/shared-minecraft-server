@@ -119,7 +119,7 @@ impl eframe::App for App {
 
                 let size = match &self.scene {
                     Scene::Hosting { .. } => vec2(600., auto_height),
-                    Scene::RepoConflicts { .. } => vec2(740., auto_height),
+                    // Scene::RepoConflicts { .. } => vec2(740., auto_height),
                     Scene::Error { .. } => vec2(400., auto_height),
                     _ => vec2(300., auto_height),
                 };
@@ -314,13 +314,16 @@ impl App {
                 ui.separator();
                 ui.label(REPO_CONFLICT_EXPLENATION.replace(" ", "  "));
 
-                let mut button = egui::Button::new("Delete all local progress");
-                if ui.style().visuals.dark_mode {
-                    button = button.fill(Color32::from_rgb(130, 10, 10));
-                } else {
-                    button = button.fill(Color32::from_rgb(255, 150, 150));
-                }
-                ui.add(button);
+                // let mut button = egui::Button::new("Delete all local progress");
+                // if ui.style().visuals.dark_mode {
+                //     button = button.fill(Color32::from_rgb(130, 10, 10));
+                // } else {
+                //     button = button.fill(Color32::from_rgb(255, 150, 150));
+                // }
+                
+                // if ui.add(button).clicked() {
+                //     self.backend.
+                // }
             }
             Scene::Error {
                 title,
@@ -340,20 +343,22 @@ impl App {
 }
 
 const REPO_CONFLICT_EXPLENATION: &str = "
-You hosted and modifyed the world to version B.
- - Local timeline: A (world before your hosting) -- your hosting --> B (world after your hosting)
-
-But your world didn't upload correctly to the database,
-so the database never received version B.
-
-Later another hoster started hosting from the database,
-crated the version C and uploaded to the database.
- - Database timeline: A (world before your hosting) -- hosting --> C (world after hosting)
-
-Currently there are three options:
-1) Delete world B and keep playing with the current database timeline.
-2) Delete world C and upload to the database the world B.
-3) Do magic... maybe.
-
-If you whant to proceede with the option 1 use the red button. Otherwise contact with a Moderator.
+Conflicts found
+Contact with a Moderator
 ";
+// You hosted and modifyed the world to version B.
+//  - Local timeline: A (world before your hosting) -- your hosting --> B (world after your hosting)
+
+// But your world didn't upload correctly to the database,
+// so the database never received version B.
+
+// Later another hoster started hosting from the database,
+// crated the version C and uploaded to the database.
+//  - Database timeline: A (world before your hosting) -- hosting --> C (world after hosting)
+
+// Currently there are three options:
+// 1) Delete world B and keep playing with the current database timeline.
+// 2) Delete world C and upload to the database the world B.
+// 3) Do magic... maybe.
+
+// If you whant to proceede with the option 1 use the red button. Otherwise 
